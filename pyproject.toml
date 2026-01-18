@@ -1,0 +1,17 @@
+[project]
+name = "alguerisme"
+version = "0.1.0"
+description = "Lexical tools and digital resources for the Alguerés language"
+readme = "README.md"
+authors = [
+    { name = "Nat-aho", email = "natascia.caria@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+alguerisme = "alguerisme:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
