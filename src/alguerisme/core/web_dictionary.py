@@ -25,7 +25,7 @@ class WebDictionary:
         content_selector: str = "#cntBody_pnlNews",
     ):
         """Initialize web dictionary."""
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")
         self.letters = letters
         self.index_url_template = index_url_template
         self.entry_link_selector = entry_link_selector
