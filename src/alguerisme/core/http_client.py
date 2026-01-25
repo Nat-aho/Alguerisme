@@ -56,6 +56,7 @@ class HttpClientSession:
             total=self.max_retries,
             status_forcelist=list(self.retry_status_codes),
             backoff_factor=self.retry_backoff_factor,
+            backoff_max=self.max_retry_delay,
             raise_on_status=False,
         )
 
