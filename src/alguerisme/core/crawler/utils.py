@@ -5,6 +5,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Sequence, Set
 
+import requests
+
 from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.core.crawler.models import (
     CrawlResult,
@@ -170,10 +172,28 @@ def _fetch_page_urls(
             page_number=page,
         )
 
-    except Exception as e:
-        logger.warning(f"Failed to fetch {index_url}: {e}")
+    except requests.RequestException as e:
+        status_code = getattr(
+            getattr(e, "response", None),
+            "status_code",
+            500,
+        )
+        logger.warning(
+            "Failed to fetch %s (status=%s): %s",
+            index_url,
+            status_code,
+            e,
+        )
         return PageCrawlResult.from_error(
             page_number=page,
             error=str(e),
-            status_code=getattr(e, "response", {}).get("status_code", 500),
+            status_code=status_code,
+        )
+
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching {index_url}: {e}")
+        return PageCrawlResult.from_error(
+            page_number=page,
+            error=str(e),
+            status_code=500,
         )
