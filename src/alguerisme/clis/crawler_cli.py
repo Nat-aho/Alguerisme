@@ -11,8 +11,8 @@ from rich.table import Table
 from alguerisme.clis.utils import setup_logging
 from alguerisme.configs import AppConfig, DatabaseConfig
 from alguerisme.core.crawler import Crawler
-from alguerisme.services.database import get_session
 from alguerisme.services.crawler import CrawlerService
+from alguerisme.services.database import get_session
 
 app = typer.Typer(
     name="alguerisme-crawler",
@@ -70,7 +70,7 @@ def run(
 
         db_config = DatabaseConfig.from_env()
 
-        config = AppConfig.load_or_default(config_file)
+        config = AppConfig.from_yaml(config_file)
         console.print(
             f"[green]✓[/green] Crawler config loaded from: "
             f"{config_file or 'config.yaml (default)'}"
