@@ -136,8 +136,6 @@ celerybeat.pid
 
 # Environments
 .env
-.env.prod
-.env.production
 .venv
 env/
 venv/
@@ -209,5 +207,7 @@ pyrightconfig.json
 
 
 ###  Custom ignores ### 
-# Ignore database files
-*.db
+
+# Environment variables file
+.env*
+!.env.prod.example
