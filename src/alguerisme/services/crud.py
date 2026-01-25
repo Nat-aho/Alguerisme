@@ -232,7 +232,8 @@ def count_entry_urls(session: Session) -> int:
         Total number of URLs
 
     """
-    return len(session.exec(select(EntryURLs)).all())
+    statement = select(func.count()).select_from(EntryURLs)
+    return session.exec(statement).one()
 
 
 def count_entry_urls_by_letter(session: Session, letter: str) -> int:
