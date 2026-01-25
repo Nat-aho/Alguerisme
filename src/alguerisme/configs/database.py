@@ -1,6 +1,5 @@
 """Database configuration and connection management."""
 
-
 from pydantic import BaseModel, Field
 
 from alguerisme.utils.env import get_env_or_die
@@ -49,9 +48,6 @@ class DatabaseConfig(BaseModel):
     @classmethod
     def from_env(cls) -> "DatabaseConfig":
         """Create DatabaseConfig from environment variables.
-
-        Loads DATABASE_* environment variables. If not set, uses defaults.
-        Call load_dotenv() before this method to load from .env files.
 
         Returns
         -------
