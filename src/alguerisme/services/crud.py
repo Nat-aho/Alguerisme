@@ -3,6 +3,7 @@
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from alguerisme.services.models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
@@ -250,5 +251,7 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
         Number of URLs for the letter
 
     """
-    statement = select(EntryURLs).where(EntryURLs.letter == letter)
-    return len(session.exec(statement).all())
+    statement = (
+        select(func.count()).select_from(EntryURLs).where(EntryURLs.letter == letter)
+    )
+    return session.exec(statement).one()
