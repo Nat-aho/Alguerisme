@@ -9,9 +9,9 @@ from rich.console import Console
 from rich.table import Table
 
 from alguerisme.clis.utils import setup_logging
-from alguerisme.configs import AppConfig, DatabaseBackend
+from alguerisme.configs import AppConfig, DatabaseConfig
 from alguerisme.core.crawler import Crawler
-from alguerisme.database import get_session, init_database
+from alguerisme.services.database import get_session
 from alguerisme.services.crawler import CrawlerService
 
 app = typer.Typer(
@@ -25,11 +25,19 @@ console = Console()
 
 @app.command()
 def run(
-    config_file: Optional[Path] = typer.Option(
-        None,
+    config_file: Path = typer.Option(
+        "config.yaml",
         "--config",
         "-c",
         help="Path to YAML configuration file (default: config.yaml)",
+        exists=True,
+        dir_okay=False,
+    ),
+    env_file: Optional[Path] = typer.Option(
+        None,
+        "--env",
+        "-e",
+        help="Path to .env file to load environment variables from.",
         exists=True,
         dir_okay=False,
     ),
@@ -38,11 +46,6 @@ def run(
         "--letters",
         "-l",
         help="Specific letters to crawl (e.g., -l a -l b -l c)",
-    ),
-    init_db: bool = typer.Option(
-        False,
-        "--init-db",
-        help="Initialize database tables before crawling",
     ),
     verbose: bool = typer.Option(
         False,
@@ -53,35 +56,33 @@ def run(
 ) -> None:
     """Crawl the Alguerés dictionary and save URLs to database.
 
-    Loads configuration from a YAML file (default: config.yaml in current directory).
-    Command-line options override configuration file values.
+    Loads crawler configuration from YAML and database config from environment.
     """
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
 
     try:
+        if env_file:
+            from alguerisme.utils.env import load_environment
+
+            load_environment(env_file)
+            console.print(f"[green]✓[/green] Environment loaded from: {env_file}")
+
+        db_config = DatabaseConfig.from_env()
+
         config = AppConfig.load_or_default(config_file)
         console.print(
-            f"[green]✓[/green] Configuration loaded from: "
+            f"[green]✓[/green] Crawler config loaded from: "
             f"{config_file or 'config.yaml (default)'}"
         )
 
-        if init_db:
-            console.print("[yellow]Initializing database tables...[/yellow]")
-            init_database(config.database)
-            console.print("[green]✓[/green] Database initialized")
-
         console.print("\n[bold]Configuration Summary:[/bold]")
-        console.print(f"  Database: {config.database.backend}")
-        if config.database.backend == DatabaseBackend.SQLITE:
-            console.print(f"  SQLite path: {config.database.sqlite_path}")
-        else:
-            console.print(
-                f"  PostgreSQL: {config.database.postgres_user}@"
-                f"{config.database.postgres_host}:"
-                f"{config.database.postgres_port}/"
-                f"{config.database.postgres_database}"
-            )
+        console.print(
+            f"  PostgreSQL: {db_config.user}@"
+            f"{db_config.host}:"
+            f"{db_config.port}/"
+            f"{db_config.database}"
+        )
         console.print(f"  Letters: {letters if letters else 'all'}")
         console.print(f"  Max workers: {config.crawler.max_workers}")
         console.print(f"  Request delay: {config.crawler.request_delay}s\n")
@@ -92,7 +93,7 @@ def run(
             crawler_config=config.crawler,
         )
 
-        session = get_session(config.database)
+        session = get_session(db_config)
 
         console.print("[bold green]Starting crawl...[/bold green]\n")
 
