@@ -7,7 +7,6 @@ import yaml
 from pydantic import BaseModel, Field
 
 from alguerisme.configs.crawler import CrawlerConfig
-from alguerisme.configs.database import DatabaseConfig
 from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
 
@@ -15,14 +14,12 @@ from alguerisme.configs.web_dictionary import WebDictionaryConfig
 class AppConfig(BaseModel):
     """Unified application configuration.
 
-    This combines all sub-configurations into a single model
+    This combines crawler, HTTP client, and web dictionary configurations
     that can be loaded from a YAML file.
+
+    NOTE: Database configuration is handled separately via environment variables.
     """
 
-    database: DatabaseConfig = Field(
-        default_factory=lambda: DatabaseConfig(),
-        description="Database configuration",
-    )
     http_client: HttpClientConfig = Field(
         default_factory=lambda: HttpClientConfig(),
         description="HTTP client configuration",
