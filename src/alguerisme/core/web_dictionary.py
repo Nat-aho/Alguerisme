@@ -1,11 +1,14 @@
 """Web dictionary abstraction for URL building and parsing."""
 
+import logging
 from typing import List
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
+
+logger = logging.getLogger(__name__)
 
 
 class WebDictionary:
@@ -45,7 +48,11 @@ class WebDictionary:
         # Limit search to content area (avoids navigation links, etc.)
         content_div = soup.select_one(self.content_selector)
         if not content_div:
-            content_div = soup
+            logger.warning(
+                "Content selector '%s' did not match any elements.",
+                self.content_selector,
+            )
+            return []
 
         # Find all entry links
         all_links = content_div.select(self.entry_link_selector)
