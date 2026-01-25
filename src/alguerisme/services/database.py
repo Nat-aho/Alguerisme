@@ -2,7 +2,7 @@
 
 from sqlmodel import Session, SQLModel, create_engine
 
-from alguerisme.configs import DatabaseBackend, DatabaseConfig
+from alguerisme.configs import DatabaseConfig
 
 
 def init_database(config: DatabaseConfig):
@@ -57,7 +57,7 @@ def create_database_engine(config: DatabaseConfig):
 
 
 def get_database_url(config: DatabaseConfig) -> str:
-    """Build database URL from configuration.
+    """Build PostgreSQL database URL from configuration.
 
     Parameters
     ----------
@@ -70,12 +70,7 @@ def get_database_url(config: DatabaseConfig) -> str:
         SQLAlchemy database URL
 
     """
-    if config.backend == DatabaseBackend.SQLITE:
-        return f"sqlite:///{config.sqlite_path}"
-    elif config.backend == DatabaseBackend.POSTGRES:
-        return (
-            f"postgresql://{config.postgres_user}:{config.postgres_password}"
-            f"@{config.postgres_host}:{config.postgres_port}/{config.postgres_database}"
-        )
-    else:
-        raise ValueError(f"Unsupported database backend: {config.backend}")
+    return (
+        f"postgresql://{config.user}:{config.password}"
+        f"@{config.host}:{config.port}/{config.database}"
+    )

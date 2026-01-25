@@ -6,7 +6,7 @@ from typing import Optional
 from sqlmodel import Session
 
 from alguerisme.core.crawler import Crawler, CrawlResult
-from alguerisme.crud import get_or_create_entry_url
+from alguerisme.services.crud import get_or_create_entry_url
 from alguerisme.services.crawler.models import CrawlServiceResult
 
 logger = logging.getLogger(__name__)

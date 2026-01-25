@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from alguerisme.models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
+from alguerisme.services.models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
 def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryURLs:
