@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: alguerisme-postgres-dev
+    env_file:
+      - .env.dev
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-alguerisme}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alguerisme-network
+
+  app:
+    build: .
+    container_name: alguerisme-app-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./src:/app/src  # Mount source for live development
+      - ./alembic:/app/alembic
+    command: ["tail", "-f", "/dev/null"]  # Keep container running for interactive commands
+    stdin_open: true
+    tty: true
+    networks:
+      - alguerisme-network
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  alguerisme-network:
+    driver: bridge
