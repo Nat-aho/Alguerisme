@@ -1,6 +1,4 @@
 """CLI to trigger Celery tasks."""
-
-
 import typer
 from rich.console import Console
 
@@ -14,8 +12,16 @@ app = typer.Typer(
 
 console = Console()
 
+
 @app.command()
-def trigger_crawler(letters: list[str] = typer.Option(...)):
+def trigger_crawler(
+    letters: list[str] = typer.Option(
+        ...,
+        "--letters",
+        "-l",
+        help="Specific letters to crawl (e.g., -l a -l b -l c)",
+    ),
+):
     """Enqueue crawler tasks for the specified letters."""
     from alguerisme.celery.tasks import crawl_letter_task
 
