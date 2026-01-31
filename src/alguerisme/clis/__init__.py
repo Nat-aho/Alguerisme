@@ -7,6 +7,7 @@ from .crawler_cli import app as crawler_app
 app = typer.Typer(
     name="alguerisme",
     help="Command-line interfaces for Alguerisme",
+    no_args_is_help=True,
     add_completion=False,
 )
 

@@ -1,22 +1,20 @@
 """CLI for running the web crawler with Typer and YAML configuration."""
 
-import logging
+import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from alguerisme.clis.utils import setup_logging
-from alguerisme.configs import AppConfig, DatabaseConfig
-from alguerisme.core.crawler import Crawler
-from alguerisme.services.crawler import CrawlerService
-from alguerisme.services.database import get_session
+from alguerisme.configs import AppConfig
+from alguerisme.jobs import run_crawl_job
 
 app = typer.Typer(
     name="alguerisme-crawler",
     help="Crawl Alguerés dictionary and save URLs to database",
+    no_args_is_help=True,
     add_completion=False,
 )
 
@@ -47,19 +45,18 @@ def run(
         "-l",
         help="Specific letters to crawl (e.g., -l a -l b -l c)",
     ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose logging",
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = typer.Option(
+        "INFO",
+        "--log-level",
+        "-L",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR)",
     ),
 ) -> None:
     """Crawl the Alguerés dictionary and save URLs to database.
 
     Loads crawler configuration from YAML and database config from environment.
     """
-    setup_logging(verbose)
-    logger = logging.getLogger(__name__)
+    setup_logging(log_level)
 
     try:
         if env_file:
@@ -68,71 +65,15 @@ def run(
             load_environment(env_file)
             console.print(f"[green]✓[/green] Environment loaded from: {env_file}")
 
-        db_config = DatabaseConfig.from_env()
-
         config = AppConfig.from_yaml(config_file)
-        console.print(
-            f"[green]✓[/green] Crawler config loaded from: "
-            f"{config_file or 'config.yaml (default)'}"
-        )
+        console.print(f"[green]✓[/green] Configuration loaded from: {config_file}")
 
-        console.print("\n[bold]Configuration Summary:[/bold]")
-        console.print(
-            f"  PostgreSQL: {db_config.user}@"
-            f"{db_config.host}:"
-            f"{db_config.port}/"
-            f"{db_config.database}"
-        )
-        console.print(f"  Letters: {letters if letters else 'all'}")
-        console.print(f"  Max workers: {config.crawler.max_workers}")
-        console.print(f"  Request delay: {config.crawler.request_delay}s\n")
-
-        crawler = Crawler.from_config(
-            web_dictionary_config=config.web_dictionary,
-            http_client_config=config.http_client,
-            crawler_config=config.crawler,
-        )
-
-        session = get_session(db_config)
-
-        console.print("[bold green]Starting crawl...[/bold green]\n")
-
-        crawler_service = CrawlerService(crawler, session)
-        result = crawler_service.crawl_and_save(letters)
-
-        console.print("\n[bold green]✓ Crawl Complete![/bold green]\n")
-
-        table = Table(title="Crawl Results", show_header=True, header_style="bold cyan")
-        table.add_column("Metric", style="cyan")
-        table.add_column("Value", style="magenta", justify="right")
-
-        table.add_row("Pages Crawled", str(result.crawl_result.total_pages))
-        table.add_row("URLs Discovered", str(result.crawl_result.url_count))
-        table.add_row("New URLs Saved", str(result.urls_saved))
-        table.add_row("Existing URLs Skipped", str(result.urls_skipped))
-        table.add_row("Failed Operations", str(result.urls_failed))
-
-        console.print(table)
-
-        if result.crawl_result.urls_by_letter:
-            console.print("\n[bold]URLs per letter:[/bold]")
-            letter_table = Table(show_header=True, header_style="bold cyan")
-            letter_table.add_column("Letter", style="cyan")
-            letter_table.add_column("Count", style="magenta", justify="right")
-
-            for letter, urls in sorted(result.crawl_result.urls_by_letter.items()):
-                letter_table.add_row(letter.upper(), str(len(urls)))
-
-            console.print(letter_table)
-
-        session.close()
-        crawler.http_client.close()
-
-        console.print("\n[green]✓ Done![/green]")
+        console.print("[blue]Starting crawl job...[/blue]")
+        stats = asyncio.run(run_crawl_job(letters=letters, config=config))
+        console.print(f"[green]✓[/green] Crawl job completed:\n{stats.summary()}")
 
     except Exception as e:
-        console.print(f"\n[bold red]Error:[/bold red] {e}")
-        logger.error("Crawl failed", exc_info=True)
+        console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(code=1)
 
 
