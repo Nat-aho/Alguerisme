@@ -16,21 +16,90 @@ services:
     networks:
       - alguerisme-network
 
+  redis:
+        image: redis:7-alpine
+        container_name: alguerisme-redis-dev
+        ports:
+          - "${REDIS_PORT:-6379}:6379"
+        secrets:
+          - redis_password
+        volumes:
+          - ./scripts/redis-entrypoint.sh:/usr/local/bin/redis-entrypoint.sh
+          - ./scripts/redis-healthcheck.sh:/usr/local/bin/redis-healthcheck.sh
+
+        command: ["/usr/local/bin/redis-entrypoint.sh"]
+        
+        healthcheck:
+          test: ["CMD", "/usr/local/bin/redis-healthcheck.sh"]
+          interval: 5s
+          timeout: 5s
+          retries: 5
+        networks:
+          - alguerisme-network
+
   app:
+    image: alguerisme-core:dev
     build: .
     container_name: alguerisme-app-dev
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env.dev
+    secrets:
+          - db_password
+          - redis_password
     volumes:
       - ./config.yaml:/app/config.yaml
-      - ./src:/app/src  # Mount source for live development
+      - ./src:/app/src
       - ./alembic:/app/alembic
-    command: ["tail", "-f", "/dev/null"]  # Keep container running for interactive commands
+    command: ["tail", "-f", "/dev/null"]
     stdin_open: true
     tty: true
+    networks:
+      - alguerisme-network
+
+  celery_worker:
+    image: alguerisme-core:dev
+    container_name: alguerisme-worker-dev
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    secrets:
+      - db_password
+      - redis_password
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./src:/app/src  # Mount source so worker updates with code changes
+    # Run the worker
+    command: ["celery", "-A", "alguerisme.celery.app", "worker", "--loglevel=info"]
+    networks:
+      - alguerisme-network
+
+  celery_beat:
+    image: alguerisme-core:dev
+    container_name: alguerisme-beat-dev
+    restart: on-failure
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    secrets:
+      - db_password
+      - redis_password
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./src:/app/src
+    # Run the beat scheduler
+    command: ["celery", "-A", "alguerisme.celery.app", "beat", "--loglevel=info"]
     networks:
       - alguerisme-network
 
@@ -40,3 +109,9 @@ volumes:
 networks:
   alguerisme-network:
     driver: bridge
+
+secrets:
+  db_password:
+    file: ./secrets/dev/db_password.txt
+  redis_password:
+    file: ./secrets/dev/redis_password.txt
