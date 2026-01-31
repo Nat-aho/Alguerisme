@@ -3,6 +3,7 @@
 import typer
 
 from .crawler_cli import app as crawler_app
+from .tasks_cli import app as tasks_app
 
 app = typer.Typer(
     name="alguerisme",
@@ -12,6 +13,7 @@ app = typer.Typer(
 )
 
 app.add_typer(crawler_app, name="crawler", help="Run the web crawler")
+app.add_typer(tasks_app, name="tasks", help="Trigger Celery tasks")
 
 
 def main():
