@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from alguerisme.services.models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
+from .models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
 def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryURLs:
