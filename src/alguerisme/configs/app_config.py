@@ -10,6 +10,7 @@ from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
 from alguerisme.configs.database import DatabaseConfig
+from alguerisme.configs.celery import CeleryConfig
 
 
 class AppConfig(BaseModel):
@@ -18,6 +19,10 @@ class AppConfig(BaseModel):
     db_config: DatabaseConfig = Field(
         default_factory=lambda: DatabaseConfig.from_env(),
         description="Database configuration",
+    )
+    celery_config: CeleryConfig = Field(
+        default_factory=lambda: CeleryConfig.from_env(),
+        description="Celery configuration",
     )
     http_client: HttpClientConfig = Field(
         default_factory=lambda: HttpClientConfig(),
