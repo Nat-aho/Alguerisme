@@ -1,13 +1,12 @@
 """Crawler module for fetching dictionary entry URLs."""
 
 import logging
-from typing import Optional, Sequence
+from typing import Optional
 
 from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
-from alguerisme.core.crawler.models import CrawlResult
-from alguerisme.core.crawler.utils import fetch_urls_for_letters
+from alguerisme.core.crawler.utils import stream_pages_async
 from alguerisme.core.http_client import HttpClientSession
 from alguerisme.core.web_dictionary import WebDictionary
 
@@ -30,25 +29,18 @@ class Crawler:
 
         logger.info(f"Crawler initialized for {self.web_dictionary.base_url}")
 
-    def run(
-        self,
-        letters: Optional[Sequence[str]] = None,
-    ) -> CrawlResult:
-        """Run the crawler to discover dictionary entry URLs."""
+    async def stream(self, letters: Optional[list[str]] = None):
+        """Async generator for streaming page results."""
         letters = letters or self.web_dictionary.get_letters()
 
-        logger.info(f"Starting crawl for {len(letters)} letters: {letters}")
-
-        crawl_result = fetch_urls_for_letters(
-            letters=letters,
-            web_dictionary=self.web_dictionary,
-            http_client=self.http_client,
-            crawler_config=self.crawler_config,
-        )
-
-        logger.info(f"Crawl complete: {len(crawl_result.urls)} URLs fetched")
-
-        return crawl_result
+        async with self.http_client as client:
+            async for result in stream_pages_async(
+                letters=letters,
+                web_dictionary=self.web_dictionary,
+                http_client=client,
+                crawler_config=self.crawler_config,
+            ):
+                yield result
 
     @classmethod
     def from_config(

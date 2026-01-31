@@ -1,100 +1,111 @@
-"""HTTP client utilities for creating and configuring HTTP sessions."""
+"""Async HTTP client session with retry logic."""
 
-from typing import Dict, Optional, Tuple
+import asyncio
+import logging
+from typing import Awaitable, Callable, Container, Dict, Optional
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
 
 from alguerisme.configs.http_client import HttpClientConfig
 
+logger = logging.getLogger(__name__)
+
 
 class HttpClientSession:
-    """HTTP client session with retry logic and configurable settings."""
+    """Async HTTP client session with retry logic."""
 
     def __init__(
         self,
         timeout: float = 10.0,
-        user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36",
+        user_agent: str = "AlguerismeBot/1.0",
         headers: Optional[Dict[str, str]] = None,
         max_retries: int = 3,
-        retry_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504),
-        retry_backoff_factor: float = 1.0,
-        max_retry_delay: float = 30.0,
+        retry_start_timeout: float = 1.0,
+        retry_status_codes: Container[int] = (429, 500, 502, 503, 504),
     ):
-        """Initialize HTTP client session."""
+        """Initialize the HTTP client session."""
         self.timeout = timeout
         self.user_agent = user_agent
         self.headers = headers or {}
         self.max_retries = max_retries
+        self.retry_start_timeout = retry_start_timeout
         self.retry_status_codes = retry_status_codes
-        self.retry_backoff_factor = retry_backoff_factor
-        self.max_retry_delay = max_retry_delay
 
-        self._session: Optional[requests.Session] = None
+        self._client: Optional[httpx.AsyncClient] = None
 
-    @property
-    def session(self) -> requests.Session:
-        """Get or create the requests session with retry logic."""
-        if self._session is None:
-            self._session = self._create_session()
-        return self._session
+    async def get_client(self) -> httpx.AsyncClient:
+        """Get or create the async client."""
+        if self._client is None or self._client.is_closed:
+            headers = {"User-Agent": self.user_agent}
+            if self.headers:
+                headers.update(self.headers)
 
-    def _create_session(self) -> requests.Session:
-        """Create and configure a requests.Session with retry logic."""
-        session = requests.Session()
+            self._client = httpx.AsyncClient(
+                headers=headers, timeout=self.timeout, follow_redirects=True
+            )
+        return self._client
 
-        # Set headers
-        session.headers.update({"User-Agent": self.user_agent})
-        if self.headers:
-            session.headers.update(self.headers)
+    async def get(self, url: str) -> httpx.Response:
+        """Perform GET request with manual retry logic."""
+        client = await self.get_client()
+        return await self._request_with_retry(client.get, url)
 
-        # Configure retry strategy
-        retry_strategy = Retry(
-            total=self.max_retries,
-            status_forcelist=list(self.retry_status_codes),
-            backoff_factor=self.retry_backoff_factor,
-            backoff_max=self.max_retry_delay,
-            raise_on_status=False,
-        )
+    async def _request_with_retry(
+        self,
+        request_method: Callable[..., Awaitable[httpx.Response]],
+        url: str,
+        **kwargs,
+    ) -> httpx.Response:
+        """Perform an HTTP request with retry logic."""
+        attempt = 0
+        backoff = self.retry_start_timeout
 
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
+        while True:
+            try:
+                response = await request_method(url, **kwargs)
 
-        return session
+                if response.status_code in self.retry_status_codes:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable status code {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
 
-    def get(self, url: str, **kwargs) -> requests.Response:
-        """Perform GET request with configured timeout."""
-        if "timeout" not in kwargs:
-            kwargs["timeout"] = self.timeout
-        return self.session.get(url, **kwargs)
+                return response
 
-    def close(self):
-        """Close the session."""
-        if self._session is not None:
-            self._session.close()
-            self._session = None
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                attempt += 1
+                if attempt > self.max_retries:
+                    logger.warning(f"Max retries reached for {url}: {e}")
+                    raise e
 
-    def __enter__(self):
-        """Context manager entry."""
+                logger.debug(f"Request failed ({e}), retrying in {backoff}s...")
+                await asyncio.sleep(backoff)
+                backoff *= 2.0  # Exponential backoff
+
+    async def close(self):
+        """Close the async client session."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    async def __aenter__(self):
+        """Enter the async context manager."""
+        await self.get_client()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async context manager."""
+        await self.close()
 
     @classmethod
-    def from_config(cls, config: "HttpClientConfig") -> "HttpClientSession":
-        """Create HttpClientSession from HttpClientConfig."""
+    def from_config(cls, config: HttpClientConfig) -> "HttpClientSession":
+        """Create an HttpClientSession instance from a configuration object."""
         return cls(
             timeout=config.timeout,
             user_agent=config.user_agent,
             headers=config.headers,
             max_retries=config.max_retries,
+            retry_start_timeout=config.retry_start_timeout,
             retry_status_codes=config.retry_status_codes,
-            retry_backoff_factor=config.retry_backoff_factor,
-            max_retry_delay=config.max_retry_delay,
         )
