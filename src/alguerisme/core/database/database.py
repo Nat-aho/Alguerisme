@@ -70,7 +70,4 @@ def get_database_url(config: DatabaseConfig) -> str:
         SQLAlchemy database URL
 
     """
-    return (
-        f"postgresql://{config.user}:{config.password}"
-        f"@{config.host}:{config.port}/{config.database}"
-    )
+    return config.url
