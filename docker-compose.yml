@@ -52,7 +52,7 @@ services:
           - db_password
           - redis_password
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
       - ./alembic:/app/alembic
     command: ["tail", "-f", "/dev/null"]
@@ -76,7 +76,7 @@ services:
       - db_password
       - redis_password
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src  # Mount source so worker updates with code changes
     # Run the worker
     command: ["celery", "-A", "alguerisme.celery.app", "worker", "--loglevel=info"]
@@ -96,7 +96,7 @@ services:
       - db_password
       - redis_password
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
     # Run the beat scheduler
     command: ["celery", "-A", "alguerisme.celery.app", "beat", "--loglevel=info"]
