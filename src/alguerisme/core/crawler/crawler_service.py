@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from typing import Optional
 
 from sqlmodel import Session
 
@@ -22,7 +21,7 @@ class CrawlerService:
         self.session = session
 
     async def run(
-        self, letters: Optional[list[str]] = None
+        self, letters: list[str]
     ) -> CrawlServiceStats:
         """Crawl the dictionary for the given letters and save URLs to the DB."""
         logger.info(f"Starting async crawl and save for letters: {letters}")

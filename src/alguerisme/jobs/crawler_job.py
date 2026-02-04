@@ -2,7 +2,6 @@
 
 
 import logging
-from typing import Optional
 
 from sqlmodel import Session
 
@@ -16,12 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 async def run_crawl_job(
-    letters: Optional[list[str]] = None, config: Optional[AppConfig] = None
+    letters: list[str], config: AppConfig
 ) -> CrawlServiceStats:
     """Run the crawl job for the specified letters."""
-    if config is None:
-        config = AppConfig.load_or_default()
-
     engine = create_database_engine(config.db_config)
 
     try:

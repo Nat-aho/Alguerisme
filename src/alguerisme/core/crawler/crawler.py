@@ -1,7 +1,6 @@
 """Crawler module for fetching dictionary entry URLs."""
 
 import logging
-from typing import Optional
 
 from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.http_client import HttpClientConfig
@@ -29,10 +28,8 @@ class Crawler:
 
         logger.info(f"Crawler initialized for {self.web_dictionary.base_url}")
 
-    async def stream(self, letters: Optional[list[str]] = None):
+    async def stream(self, letters: list[str]):
         """Async generator for streaming page results."""
-        letters = letters or self.web_dictionary.get_letters()
-
         async with self.http_client as client:
             async for result in stream_pages_async(
                 letters=letters,
