@@ -23,7 +23,7 @@ def trigger_crawler(
     ),
 ):
     """Enqueue crawler tasks for the specified letters."""
-    from alguerisme.celery.tasks import crawl_letter_task
+    from alguerisme.celery.app import crawl_letter_task
 
     for letter in letters:
         crawl_letter_task.delay(letter)
