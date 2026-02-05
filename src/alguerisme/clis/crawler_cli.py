@@ -49,12 +49,3 @@ def run(
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(code=1)
-
-
-def main() -> None:
-    """Run the CLI application."""
-    app()
-
-
-if __name__ == "__main__":
-    main()

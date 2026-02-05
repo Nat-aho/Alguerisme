@@ -1,7 +1,7 @@
 """CLI to trigger Celery tasks."""
+
 import typer
 from rich.console import Console
-
 
 app = typer.Typer(
     name="alguerisme-tasks",
