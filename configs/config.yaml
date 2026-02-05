@@ -15,8 +15,7 @@ http_client:
     - 502
     - 503
     - 504
-  retry_backoff_factor: 1.0
-  max_retry_delay: 30.0
+  retry_start_timeout: 1.0
 
 # Web Dictionary Configuration
 web_dictionary:
