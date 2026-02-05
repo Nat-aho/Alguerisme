@@ -140,6 +140,38 @@ def get_entry_urls_by_letter(session: Session, letter: str) -> list[EntryURLs]:
     return list(session.exec(statement).all())
 
 
+def get_entry_urls_paginated(
+    session: Session,
+    limit: int = 50,
+    offset: int = 0,
+    letter: Optional[str] = None,
+) -> list[EntryURLs]:
+    """Get URL entries with pagination.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : int
+        Maximum number of entries to return (default: 50)
+    offset : int
+        Number of entries to skip (default: 0)
+    letter : Optional[str]
+        Optional letter to filter by
+
+    Returns
+    -------
+    list[EntryURLs]
+        List of EntryURLs (paginated)
+
+    """
+    statement = select(EntryURLs)
+    if letter:
+        statement = statement.where(EntryURLs.letter == letter)
+    statement = statement.offset(offset).limit(limit)
+    return list(session.exec(statement).all())
+
+
 def update_entry_url(
     session: Session, id: UUID, entry_update: EntryURLsUpdate
 ) -> Optional[EntryURLs]:
@@ -256,3 +288,53 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
         select(func.count()).select_from(EntryURLs).where(EntryURLs.letter == letter)
     )
     return session.exec(statement).one()
+
+
+def delete_all_entry_urls(session: Session) -> int:
+    """Delete all URL entries.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    int
+        Number of entries deleted
+
+    """
+    statement = select(EntryURLs)
+    entries = session.exec(statement).all()
+    count = 0
+    for entry in entries:
+        session.delete(entry)
+        count += 1
+    session.commit()
+    return count
+
+
+def delete_entry_urls_by_letter(session: Session, letter: str) -> int:
+    """Delete all URL entries for a specific letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to filter by
+
+    Returns
+    -------
+    int
+        Number of entries deleted
+
+    """
+    statement = select(EntryURLs).where(EntryURLs.letter == letter)
+    entries = session.exec(statement).all()
+    count = 0
+    for entry in entries:
+        session.delete(entry)
+        count += 1
+    session.commit()
+    return count
