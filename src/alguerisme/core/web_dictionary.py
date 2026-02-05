@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
+from alguerisme.utils.alphabet import Alphabet
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class WebDictionary:
     def __init__(
         self,
         base_url: str = "https://www.algueres.net/",
-        letters: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        letters: str = Alphabet.STANDARD_CHARS,
         index_url_template: str = "{base_url}/index.aspx?lletra={letter}&p={page}",
         entry_link_selector: str = "a[href*='/vocabols/']",
         entry_link_prefix: str = "/vocabols/",

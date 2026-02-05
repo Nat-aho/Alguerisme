@@ -6,6 +6,8 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from alguerisme.utils.alphabet import normalize_letter
+
 from .models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
@@ -45,7 +47,7 @@ def get_or_create_entry_url(
     url : str
         The URL to get or create
     letter : Optional[str]
-        Optional letter (used only if creating)
+        Optional letter (used only if creating). Will be normalized to uppercase.
 
     Returns
     -------
@@ -58,8 +60,9 @@ def get_or_create_entry_url(
     if existing:
         return existing, False
 
-    # Create using the Create model
-    entry_create = EntryURLsCreate(url=url, letter=letter)
+    normalized_letter = normalize_letter(letter) if letter else None
+
+    entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
     entry = create_entry_url(session, entry_create)
     return entry, True
 
@@ -128,7 +131,7 @@ def get_entry_urls_by_letter(session: Session, letter: str) -> list[EntryURLs]:
     session : Session
         Database session
     letter : str
-        Letter to filter by
+        Letter to filter by (will be normalized to uppercase)
 
     Returns
     -------
@@ -136,7 +139,9 @@ def get_entry_urls_by_letter(session: Session, letter: str) -> list[EntryURLs]:
         List of EntryURLs for the letter
 
     """
-    statement = select(EntryURLs).where(EntryURLs.letter == letter)
+    # Normalize letter to ensure uppercase and valid format
+    normalized_letter = normalize_letter(letter)
+    statement = select(EntryURLs).where(EntryURLs.letter == normalized_letter)
     return list(session.exec(statement).all())
 
 
@@ -157,7 +162,7 @@ def get_entry_urls_paginated(
     offset : int
         Number of entries to skip (default: 0)
     letter : Optional[str]
-        Optional letter to filter by
+        Optional letter to filter by (will be normalized to uppercase)
 
     Returns
     -------
@@ -167,7 +172,8 @@ def get_entry_urls_paginated(
     """
     statement = select(EntryURLs)
     if letter:
-        statement = statement.where(EntryURLs.letter == letter)
+        normalized_letter = normalize_letter(letter)
+        statement = statement.where(EntryURLs.letter == normalized_letter)
     statement = statement.offset(offset).limit(limit)
     return list(session.exec(statement).all())
 

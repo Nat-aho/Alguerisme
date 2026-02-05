@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 
+from alguerisme.utils.alphabet import Alphabet
+
 
 class WebDictionaryConfig(BaseModel):
     """Configuration describing the structure of the dictionary website."""
@@ -11,7 +13,7 @@ class WebDictionaryConfig(BaseModel):
         description="Base URL of the dictionary site",
     )
     letters: str = Field(
-        default="ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        default=Alphabet.STANDARD_CHARS,
         description="Letters/prefixes to crawl",
     )
     index_url_template: str = Field(

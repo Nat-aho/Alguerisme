@@ -8,17 +8,36 @@ from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.core.crawler.models import PageCrawlResult
 from alguerisme.core.http_client import HttpClientSession
 from alguerisme.core.web_dictionary import WebDictionary
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
 
 async def stream_pages_async(
-    letters: Sequence[str],
+    letters: Sequence[Letter],
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
 ) -> AsyncGenerator[PageCrawlResult, None]:
-    """Stream crawl results page by page asynchronously."""
+    """Stream crawl results page by page asynchronously.
+
+    Parameters
+    ----------
+        letters: Sequence[Letter]
+            List of validated Letter objects to crawl
+        web_dictionary: WebDictionary
+            WebDictionary instance for building URLs and parsing pages
+        http_client: HttpClientSession
+            HTTP client session for making requests to the web dictionary
+        crawler_config: CrawlerConfig
+            Configuration for the crawler behavior
+
+    Yields
+    ------
+        PageCrawlResult
+            Results for each crawled page
+
+    """
     queue: asyncio.Queue[PageCrawlResult | None] = asyncio.Queue()
 
     producer = asyncio.create_task(
@@ -36,7 +55,7 @@ async def stream_pages_async(
 
 async def _producer_task(
     queue: asyncio.Queue,
-    letters: Sequence[str],
+    letters: Sequence[Letter],
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
@@ -44,7 +63,7 @@ async def _producer_task(
     """Manage workers and push results to the queue."""
     semaphore = asyncio.Semaphore(crawler_config.max_workers)
 
-    async def _worker_bridge(letter: str):
+    async def _worker_bridge(letter: Letter):
         """Bridge: Iterates the generator and pushes to queue."""
         async with semaphore:
             async for result in _crawl_letter_generator(
@@ -60,7 +79,7 @@ async def _producer_task(
 
 
 async def _crawl_letter_generator(
-    letter: str,
+    letter: Letter,
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
@@ -94,13 +113,14 @@ async def _crawl_letter_generator(
 
 
 async def _fetch_single_page(
-    letter: str,
+    letter: Letter,
     page: int,
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
 ) -> PageCrawlResult:
     """Fetch and parse a single page for a given letter."""
-    url = web_dictionary.build_index_url(letter, page)
+    # Convert Letter to str at the boundary where we build URLs
+    url = web_dictionary.build_index_url(str(letter), page)
 
     try:
         response = await http_client.get(url)

@@ -8,6 +8,7 @@ from alguerisme.configs.web_dictionary import WebDictionaryConfig
 from alguerisme.core.crawler.utils import stream_pages_async
 from alguerisme.core.http_client import HttpClientSession
 from alguerisme.core.web_dictionary import WebDictionary
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,20 @@ class Crawler:
 
         logger.info(f"Crawler initialized for {self.web_dictionary.base_url}")
 
-    async def stream(self, letters: list[str]):
-        """Async generator for streaming page results."""
+    async def stream(self, letters: list[Letter]):
+        """Asynchronously stream crawl results for the given letters.
+
+        Parameters
+        ----------
+            letters: list[Letter]
+                List of validated Letter objects to crawl
+
+        Yields
+        ------
+            PageCrawlResult
+                Results for each crawled page
+
+        """
         async with self.http_client as client:
             async for result in stream_pages_async(
                 letters=letters,

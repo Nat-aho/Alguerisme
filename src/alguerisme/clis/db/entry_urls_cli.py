@@ -10,6 +10,7 @@ from alguerisme.clis.utils import setup_logging
 from alguerisme.configs.loader import load_app_config
 from alguerisme.core.database import crud
 from alguerisme.core.database.database import get_session
+from alguerisme.utils.alphabet import Alphabet, Letter
 
 app = typer.Typer(
     name="entry-urls",
@@ -46,18 +47,32 @@ def show(
     setup_logging(log_level)
 
     try:
+        # Validate letter if provided
+        validated_letter = None
+        if letter:
+            try:
+                validated_letter = Letter(letter)
+            except ValueError as e:
+                console.print(f"[red]Invalid letter:[/red] {e}")
+                raise typer.Exit(code=1)
+
         config = load_app_config()
         session = get_session(config.db_config)
 
         # Get total count efficiently
-        if letter:
-            total_count = crud.count_entry_urls_by_letter(session, letter.upper())
+        if validated_letter:
+            total_count = crud.count_entry_urls_by_letter(
+                session, str(validated_letter)
+            )
         else:
             total_count = crud.count_entry_urls(session)
 
         # Get entries with pagination (efficient - only fetch what we need)
         entries = crud.get_entry_urls_paginated(
-            session, limit=limit, offset=0, letter=letter.upper() if letter else None
+            session,
+            limit=limit,
+            offset=0,
+            letter=str(validated_letter) if validated_letter else None,
         )
 
         # Create table
@@ -111,14 +126,25 @@ def count(
     setup_logging(log_level)
 
     try:
+        # Validate letter if provided
+        validated_letter = None
+        if letter:
+            try:
+                validated_letter = Letter(letter)
+            except ValueError as e:
+                console.print(f"[red]Invalid letter:[/red] {e}")
+                raise typer.Exit(code=1)
+
         config = load_app_config()
         session = get_session(config.db_config)
 
-        if letter:
-            count_val = crud.count_entry_urls_by_letter(session, letter.upper())
+        if validated_letter:
+            count_val = crud.count_entry_urls_by_letter(
+                session, str(validated_letter)
+            )
             msg = (
                 f"[green]✓[/green] Entry URLs for letter "
-                f"'{letter.upper()}': {count_val}"
+                f"'{validated_letter}': {count_val}"
             )
             console.print(msg)
         else:
@@ -159,12 +185,12 @@ def stats(
         stats_table.add_row("Total Entry URLs", str(total))
 
         # Get counts by letter
-        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        alphabet = Alphabet.standard()
         letter_counts = {}
-        for letter in letters:
-            count = crud.count_entry_urls_by_letter(session, letter)
+        for letter_obj in alphabet:
+            count = crud.count_entry_urls_by_letter(session, str(letter_obj))
             if count > 0:
-                letter_counts[letter] = count
+                letter_counts[str(letter_obj)] = count
 
         if letter_counts:
             stats_table.add_section()
@@ -205,13 +231,22 @@ def clean(
     setup_logging(log_level)
 
     try:
+        # Validate letter if provided
+        validated_letter = None
+        if letter:
+            try:
+                validated_letter = Letter(letter)
+            except ValueError as e:
+                console.print(f"[red]Invalid letter:[/red] {e}")
+                raise typer.Exit(code=1)
+
         config = load_app_config()
         session = get_session(config.db_config)
 
         # Get count for confirmation message
-        if letter:
-            count = crud.count_entry_urls_by_letter(session, letter.upper())
-            msg = f"all {count} entry URLs for letter '{letter.upper()}'"
+        if validated_letter:
+            count = crud.count_entry_urls_by_letter(session, str(validated_letter))
+            msg = f"all {count} entry URLs for letter '{validated_letter}'"
         else:
             count = crud.count_entry_urls(session)
             msg = f"all {count} entry URLs"
@@ -227,11 +262,13 @@ def clean(
                 raise typer.Exit(0)
 
         # Delete entries efficiently
-        if letter:
-            deleted = crud.delete_entry_urls_by_letter(session, letter.upper())
+        if validated_letter:
+            deleted = crud.delete_entry_urls_by_letter(
+                session, str(validated_letter)
+            )
             success_msg = (
                 f"[green]✓[/green] Deleted {deleted} entry URLs "
-                f"for letter '{letter.upper()}'"
+                f"for letter '{validated_letter}'"
             )
             console.print(success_msg)
         else:

@@ -8,6 +8,7 @@ from sqlmodel import Session
 from alguerisme.core.crawler.crawler import Crawler
 from alguerisme.core.crawler.models import CrawlServiceStats
 from alguerisme.core.database.crud import get_or_create_entry_url
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,20 @@ class CrawlerService:
         self.crawler = crawler
         self.session = session
 
-    async def run(
-        self, letters: list[str]
-    ) -> CrawlServiceStats:
-        """Crawl the dictionary for the given letters and save URLs to the DB."""
+    async def run(self, letters: list[Letter]) -> CrawlServiceStats:
+        """Crawl the dictionary for the given letters and save URLs to the DB.
+
+        Parameters
+        ----------
+            letters: list[Letter]
+                List of validated Letter objects to crawl
+
+        Returns
+        -------
+            CrawlServiceStats
+                Statistics from the crawl operation
+
+        """
         logger.info(f"Starting async crawl and save for letters: {letters}")
 
         stats = CrawlServiceStats.empty()
@@ -53,8 +64,22 @@ class CrawlerService:
 
         return stats
 
-    def _save_batch_sync(self, urls: set[str], letter: str) -> tuple[int, int, int]:
-        """Save a batch of URLs synchronously."""
+    def _save_batch_sync(self, urls: set[str], letter: Letter) -> tuple[int, int, int]:
+        """Save a batch of URLs synchronously.
+
+        Parameters
+        ----------
+            urls: set[str]
+                Set of URL strings to save
+            letter: Letter
+                Letter object associated with these URLs
+
+        Returns
+        -------
+            tuple[int, int, int]
+                Tuple of (saved_count, skipped_count, failed_count)
+
+        """
         saved_count = 0
         skipped_count = 0
         failed_count = 0
@@ -62,7 +87,8 @@ class CrawlerService:
         try:
             for url in urls:
                 try:
-                    _, created = get_or_create_entry_url(self.session, url, letter)
+                    # Convert Letter to str at DB boundary
+                    _, created = get_or_create_entry_url(self.session, url, str(letter))
                     if created:
                         saved_count += 1
                     else:

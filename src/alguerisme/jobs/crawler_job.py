@@ -10,14 +10,29 @@ from alguerisme.core.crawler.crawler import Crawler
 from alguerisme.core.database import create_database_engine
 from alguerisme.core.crawler.crawler_service import CrawlerService
 from alguerisme.core.crawler.models import CrawlServiceStats
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
 
 async def run_crawl_job(
-    letters: list[str], config: AppConfig
+    letters: list[Letter], config: AppConfig
 ) -> CrawlServiceStats:
-    """Run the crawl job for the specified letters."""
+    """Run the crawl job for the specified letters.
+
+    Parameters
+    ----------
+    letters: list[Letter]
+        List of validated Letter objects
+    config: AppConfig
+        Application configuration
+
+    Returns
+    -------
+    CrawlServiceStats
+        Statistics from the crawl operation
+
+    """
     engine = create_database_engine(config.db_config)
 
     try:

@@ -9,6 +9,7 @@ from rich.console import Console
 from alguerisme.clis.utils import setup_logging
 from alguerisme.configs.loader import load_app_config
 from alguerisme.jobs import run_crawl_job
+from alguerisme.utils.alphabet import Letter, Alphabet
 
 app = typer.Typer(
     name="alguerisme-crawler",
@@ -23,10 +24,10 @@ console = Console()
 @app.command()
 def run(
     letters: list[str] = typer.Option(
-        list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        [str(letter) for letter in Alphabet.standard()],
         "--letters",
         "-l",
-        help="Specific letters to crawl (e.g., -l A -l B -l C)",
+        help="Specific letters to crawl (e.g. -l A -l B -l C)",
     ),
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = typer.Option(
         "INFO",
@@ -39,13 +40,18 @@ def run(
     setup_logging(log_level)
 
     try:
+        validated_letters = [Letter(letter) for letter in letters]
+
         config = load_app_config()
         console.print("[green]✓[/green] Configuration loaded")
 
         console.print("[blue]Starting crawl job...[/blue]")
-        stats = asyncio.run(run_crawl_job(letters=letters, config=config))
+        stats = asyncio.run(run_crawl_job(letters=validated_letters, config=config))
         console.print(f"[green]✓[/green] Crawl job completed:\n{stats.summary()}")
 
+    except ValueError as e:
+        console.print(f"[red]Invalid letter:[/red] {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(code=1)

@@ -3,6 +3,8 @@
 import typer
 from rich.console import Console
 
+from alguerisme.utils.alphabet import Letter
+
 app = typer.Typer(
     name="alguerisme-tasks",
     help="Trigger Celery tasks for Alguerisme",
@@ -25,6 +27,14 @@ def trigger_crawler(
     """Enqueue crawler tasks for the specified letters."""
     from alguerisme.celery.app import crawl_letter_task
 
-    for letter in letters:
-        crawl_letter_task.delay(letter)
-        console.print(f"Enqueued task for {letter}")
+    try:
+        validated_letters = [Letter(letter) for letter in letters]
+
+        # Convert to strings at Celery boundary (for JSON serialization)
+        for letter in validated_letters:
+            crawl_letter_task.delay(str(letter))
+            console.print(f"[green]✓[/green] Enqueued task for {letter}")
+
+    except ValueError as e:
+        console.print(f"[red]Invalid letter:[/red] {e}")
+        raise typer.Exit(code=1)

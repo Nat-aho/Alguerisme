@@ -3,12 +3,14 @@
 from dataclasses import dataclass
 from typing import Optional, Set
 
+from alguerisme.utils.alphabet import Letter
+
 
 @dataclass
 class PageCrawlResult:
     """Result from fetching a single index page."""
 
-    letter: str
+    letter: Letter
     page_number: int
     urls: Set[str]
     status_code: int
@@ -21,7 +23,7 @@ class PageCrawlResult:
 
     @classmethod
     def from_error(
-        cls, letter: str, page_number: int, error: str, status_code: int
+        cls, letter: Letter, page_number: int, error: str, status_code: int
     ) -> "PageCrawlResult":
         """Create an empty PageCrawlResult representing a failed fetch."""
         return cls(

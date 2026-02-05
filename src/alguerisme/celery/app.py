@@ -8,6 +8,7 @@ from celery.schedules import crontab
 
 from alguerisme.configs.loader import load_app_config
 from alguerisme.jobs import run_crawl_job
+from alguerisme.utils.alphabet import Letter, Alphabet
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,11 @@ app = build_celery_app()
 @app.task(bind=True)
 def trigger_daily_crawl(self):
     """Orchestrator: Enqueues a sub-task for every letter."""
-    letters = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    letters = [str(letter) for letter in Alphabet.standard()]
     logger.info(f"Orchestrating daily crawl for {len(letters)} letters")
 
     # Creates a group of tasks that can run in parallel
+    # Letters are already uppercase strings, validated by the task
     job_group = group(crawl_letter_task.s(letter) for letter in letters)
     job_group.apply_async()
 
@@ -62,8 +64,14 @@ def trigger_daily_crawl(self):
     max_retries=3,
     time_limit=300,  # Hard kill after 5 minutes
 )
-def crawl_letter_task(self, letter: str):
-    """Worker: Crawls a single letter."""
+def crawl_letter_task(self, letter_str: str):
+    """Run worker: Crawls a single letter."""
+    try:
+        letter = Letter(letter_str)
+    except ValueError as e:
+        logger.error(f"Invalid letter received: {letter_str} - {e}")
+        raise
+
     logger.info(f"Worker processing letter: {letter}")
     config = load_app_config()
     try:
