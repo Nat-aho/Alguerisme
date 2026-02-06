@@ -67,6 +67,12 @@ class CrawlerService:
     def _save_batch_sync(self, urls: set[str], letter: Letter) -> tuple[int, int, int]:
         """Save a batch of URLs synchronously.
 
+        Uses a retry strategy: attempts batch commit first for performance,
+        then falls back to individual commits on failure to identify specific issues.
+
+        Note: get_or_create_entry_url does NOT auto-commit. This service controls
+        all transaction boundaries to enable proper batch processing and rollbacks.
+
         Parameters
         ----------
             urls: set[str]
@@ -84,28 +90,42 @@ class CrawlerService:
         skipped_count = 0
         failed_count = 0
 
-        try:
-            for url in urls:
-                try:
-                    # Convert Letter to str at DB boundary
-                    _, created = get_or_create_entry_url(self.session, url, str(letter))
-                    if created:
-                        saved_count += 1
-                    else:
-                        skipped_count += 1
-                except Exception as e:
-                    failed_count += 1
-                    logger.error(f"Failed to save URL {url}: {e}")
+        def process_url(url: str) -> None:
+            """Process a single URL and update counts."""
+            nonlocal saved_count, skipped_count
+            # Convert Letter to str at DB boundary
+            _, created = get_or_create_entry_url(self.session, url, str(letter))
+            if created:
+                saved_count += 1
+            else:
+                skipped_count += 1
 
-            # Commit the batch
+        try:
+            # Attempt batch processing (fast path)
+            for url in urls:
+                process_url(url)
             self.session.commit()
 
         except Exception as e:
-            logger.error(f"Critical DB error saving batch for {letter}: {e}")
+            # Batch commit failed - rollback and retry individually
             self.session.rollback()
-            # If the commit failed, everything in this batch failed
-            failed_count += saved_count + skipped_count
+            logger.warning(
+                f"Batch commit failed for {letter}, "
+                f"retrying {len(urls)} URLs individually: {e}"
+            )
+
+            # Reset counts since rollback discarded everything
             saved_count = 0
             skipped_count = 0
+
+            # Retry each URL individually to identify actual failures
+            for url in urls:
+                try:
+                    process_url(url)
+                    self.session.commit()
+                except Exception as individual_e:
+                    self.session.rollback()
+                    failed_count += 1
+                    logger.error(f"Failed to save URL {url}: {individual_e}")
 
         return saved_count, skipped_count, failed_count

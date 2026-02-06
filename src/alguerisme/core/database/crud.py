@@ -11,7 +11,9 @@ from alguerisme.utils.alphabet import normalize_letter
 from .models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
-def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryURLs:
+def create_entry_url(
+    session: Session, entry_create: EntryURLsCreate, commit: bool = False
+) -> EntryURLs:
     """Create a new URL entry.
 
     Parameters
@@ -20,6 +22,9 @@ def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryUR
         Database session
     entry_create : EntryURLsCreate
         Data for creating the entry
+    commit : bool
+        Whether to commit the transaction immediately. Default False.
+        Allows caller to control transaction boundaries.
 
     Returns
     -------
@@ -30,13 +35,18 @@ def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryUR
     # Convert Create model to DB model
     entry = EntryURLs.model_validate(entry_create)
     session.add(entry)
-    session.commit()
-    session.refresh(entry)
+    if commit:
+        session.commit()
+        session.refresh(entry)
+    else:
+        # Flush to get the ID without committing
+        session.flush()
+        session.refresh(entry)
     return entry
 
 
 def get_or_create_entry_url(
-    session: Session, url: str, letter: Optional[str] = None
+    session: Session, url: str, letter: Optional[str] = None, commit: bool = False
 ) -> tuple[EntryURLs, bool]:
     """Get existing URL entry or create new one.
 
@@ -48,6 +58,9 @@ def get_or_create_entry_url(
         The URL to get or create
     letter : Optional[str]
         Optional letter (used only if creating). Will be normalized to uppercase.
+    commit : bool
+        Whether to commit the transaction immediately. Default False.
+        Allows caller to control transaction boundaries.
 
     Returns
     -------
@@ -63,7 +76,7 @@ def get_or_create_entry_url(
     normalized_letter = normalize_letter(letter) if letter else None
 
     entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
-    entry = create_entry_url(session, entry_create)
+    entry = create_entry_url(session, entry_create, commit=commit)
     return entry, True
 
 
