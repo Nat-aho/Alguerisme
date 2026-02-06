@@ -52,6 +52,14 @@ class Crawler:
             ):
                 yield result
 
+    async def __aenter__(self):
+        """Enter the async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit the async context manager and close the HTTP client."""
+        await self.http_client.close()
+
     @classmethod
     def from_config(
         cls,

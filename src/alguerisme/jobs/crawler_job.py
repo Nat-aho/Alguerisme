@@ -37,14 +37,12 @@ async def run_crawl_job(
 
     try:
         with Session(engine) as session:
-            crawler = Crawler.from_config(
+            async with Crawler.from_config(
                 web_dictionary_config=config.web_dictionary,
                 http_client_config=config.http_client,
                 crawler_config=config.crawler,
-            )
-            service = CrawlerService(crawler, session)
-
-            async with service.crawler.http_client:
+            ) as crawler:
+                service = CrawlerService(crawler, session)
                 stats = await service.run(letters=letters)
                 return stats
 
