@@ -25,14 +25,17 @@ def get_secret(secret_name: str) -> str:
     docker_secret_path = _DEFAULT_SECRET_PATH / secret_name
     try:
         return docker_secret_path.read_text().strip()
-    except FileNotFoundError as e:
-        logger.error(f"Docker secret file not found for '{secret_name}': {e}")
+
+    except FileNotFoundError:
+        logger.error(f"Secret '{secret_name}' is missing from the secret store.")
+        raise KeyError(f"Secret '{secret_name}' not found.") from None
+
     except OSError as e:
-        logger.error(
-            f"Found Docker secret '{secret_name}' but could not read it: {e}"
-        )
-    except Exception as e:
-        logger.error(
-            f"Unexpected error while reading Docker secret '{secret_name}': {e}"
-        )
-    raise EnvironmentError(f"Secret '{secret_name}' not found.")
+        logger.error(f"IO error accessing secret '{secret_name}': {type(e).__name__}")
+        raise RuntimeError(
+            f"Secret '{secret_name}' exists but is inaccessible."
+        ) from None
+
+    except Exception:
+        logger.error(f"Unexpected error retrieving secret '{secret_name}'")
+        raise RuntimeError(f"Internal error fetching secret '{secret_name}'") from None
