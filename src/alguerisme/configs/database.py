@@ -1,6 +1,6 @@
 """Database configuration and connection management."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from alguerisme.utils.env import get_env_or_die
 from alguerisme.utils.secrets import get_secret
@@ -41,18 +41,26 @@ class DatabaseConfig(BaseModel):
         description="Echo SQL queries (for debugging)",
     )
 
+    _password: str | None = PrivateAttr(default=None)
+
     @property
     def password(self) -> str:
-        """Retrieve database password from secrets."""
-        return get_secret("db_password")
+        """Read and cache the database password."""
+        if self._password is None:
+            self._password = get_secret("db_password")
+        return self._password
+
+    _url: str | None = PrivateAttr(default=None)
 
     @property
     def url(self) -> str:
-        """Construct the database connection URL."""
-        return (
-            f"postgresql://{self.user}:{self.password}"
-            f"@{self.host}:{self.port}/{self.database}"
-        )
+        """Build and cache the database URL."""
+        if self._url is None:
+            self._url = (
+                f"postgresql://{self.user}:{self.password}"
+                f"@{self.host}:{self.port}/{self.database}"
+            )
+        return self._url
 
     @classmethod
     def from_env(cls) -> "DatabaseConfig":
