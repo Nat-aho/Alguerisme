@@ -60,22 +60,43 @@ async def _producer_task(
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
 ):
-    """Manage workers and push results to the queue."""
+    """Manage workers and push results to the queue.
+
+    Uses TaskGroup for proper async task management. Individual letter failures
+    are logged but don't stop other letters from being crawled. The sentinel
+    value is guaranteed to be sent via the finally block.
+    """
     semaphore = asyncio.Semaphore(crawler_config.max_workers)
 
     async def _worker_bridge(letter: Letter):
-        """Bridge: Iterates the generator and pushes to queue."""
-        async with semaphore:
-            async for result in _crawl_letter_generator(
-                letter, web_dictionary, http_client, crawler_config
-            ):
-                await queue.put(result)
+        """Bridge: Iterates the generator and pushes to queue.
 
-    tasks = [asyncio.create_task(_worker_bridge(letter)) for letter in letters]
-    if tasks:
-        await asyncio.gather(*tasks)
+        Catches and logs exceptions to allow other letters to continue processing.
+        Critical errors in one letter won't stop the entire crawl.
+        """
+        try:
+            async with semaphore:
+                async for result in _crawl_letter_generator(
+                    letter, web_dictionary, http_client, crawler_config
+                ):
+                    await queue.put(result)
+        except Exception as e:
+            logger.exception(f"[{letter}] Worker failed with unexpected error: {e}")
+            # Don't re-raise - let other letters continue crawling
 
-    await queue.put(None)
+    try:
+        # TaskGroup ensures proper cleanup and cancellation semantics
+        async with asyncio.TaskGroup() as tg:
+            for letter in letters:
+                tg.create_task(_worker_bridge(letter))
+    except* Exception as eg:
+        # This should rarely happen since _worker_bridge catches exceptions
+        # Only critical/unexpected errors (like asyncio bugs) would reach here
+        logger.error(f"Critical error in task group: {eg}")
+        raise
+    finally:
+        # CRITICAL: Always send sentinel to prevent consumer from hanging
+        await queue.put(None)
 
 
 async def _crawl_letter_generator(
