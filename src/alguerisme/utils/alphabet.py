@@ -30,7 +30,7 @@ class Letter:
         return self.value
 
     def __repr__(self) -> str:
-        """Retrn the representation of the Letter."""
+        """Return the representation of the Letter."""
         return f"Letter('{self.value}')"
 
 
