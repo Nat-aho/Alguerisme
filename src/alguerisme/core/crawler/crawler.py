@@ -43,14 +43,13 @@ class Crawler:
                 Results for each crawled page
 
         """
-        async with self.http_client as client:
-            async for result in stream_pages_async(
-                letters=letters,
-                web_dictionary=self.web_dictionary,
-                http_client=client,
-                crawler_config=self.crawler_config,
-            ):
-                yield result
+        async for result in stream_pages_async(
+            letters=letters,
+            web_dictionary=self.web_dictionary,
+            http_client=self.http_client,
+            crawler_config=self.crawler_config,
+        ):
+            yield result
 
     async def __aenter__(self):
         """Enter the async context manager."""
@@ -58,6 +57,10 @@ class Crawler:
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         """Exit the async context manager and close the HTTP client."""
+        await self.close()
+
+    async def close(self):
+        """Close the underlying HTTP client and release resources."""
         await self.http_client.close()
 
     @classmethod
