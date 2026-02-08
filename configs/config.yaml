@@ -31,3 +31,10 @@ web_dictionary:
 crawler:
   max_workers: 5
   request_delay: 1.0
+
+# Notification Configuration
+notifications:
+  telegram:
+    chat_id: "-1003451098993"
+    enabled: true
+    parse_mode: "Markdown"
