@@ -104,7 +104,7 @@ def normalize_letter(letter: str) -> str:
     return str(validated)  # This returns uppercase
 
 
-def normalize_letters(letters: list[str]) -> list[str]:
+def normalize_letters(letters: list[str], unique: bool = True) -> list[str]:
     """Validate and normalize multiple letters to uppercase.
 
     This is the single source of truth for validating letter lists.
@@ -114,7 +114,31 @@ def normalize_letters(letters: list[str]) -> list[str]:
     ----------
     letters : list[str]
         A list of strings, each should be a single alphabetic character
+    unique : bool
+        If True, removes duplicate letters while preserving order (default: True)
+
+    Returns
+    -------
+    list[str]
+        Validated and normalized uppercase letters
+
+    Raises
+    ------
+    ValueError
+        If any letter is invalid or not in the alphabet
     """
     alphabet = Alphabet.standard()
     validated = alphabet.validate_subset(letters)
-    return [str(letter) for letter in validated]
+    result = [str(letter) for letter in validated]
+
+    if unique:
+        # Deduplicate while preserving order of first appearance
+        seen = set()
+        deduped = []
+        for letter in result:
+            if letter not in seen:
+                deduped.append(letter)
+                seen.add(letter)
+        return deduped
+
+    return result
