@@ -3,12 +3,15 @@
 import asyncio
 import logging
 
-from celery import Celery, group
+from celery import Celery, chord
 from celery.schedules import crontab
 
 from alguerisme.configs.loader import load_app_config
+from alguerisme.core.crawler.models import CrawlServiceStats
 from alguerisme.jobs import run_crawl_job
-from alguerisme.utils.alphabet import Letter, Alphabet
+from alguerisme.notifications.manager import NotificationManager
+from alguerisme.reports import CrawlReport
+from alguerisme.utils.alphabet import Alphabet, Letter
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +49,39 @@ def build_celery_app() -> Celery:
 app = build_celery_app()
 
 
-@app.task(bind=True)
-def trigger_daily_crawl(self):
-    """Orchestrator: Enqueues a sub-task for every letter."""
-    letters = [str(letter) for letter in Alphabet.standard()]
-    logger.info(f"Orchestrating daily crawl for {len(letters)} letters")
+@app.task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+def trigger_daily_crawl(self, letters: list[str] | None = None) -> str:
+    """Run orchestrator: Trigger crawl for specified letters."""
+    if letters is None:
+        letters = [str(letter) for letter in Alphabet.standard()]
 
-    # Creates a group of tasks that can run in parallel
-    # Letters are already uppercase strings, validated by the task
-    job_group = group(crawl_letter_task.s(letter) for letter in letters)
-    job_group.apply_async()
+    logger.info(f"Orchestrating crawl for {len(letters)} letters: {letters}")
+
+    header = [crawl_letter_task.s(letter) for letter in letters]
+    callback = send_crawl_notification.s()
+    try:
+        # Chord runs header tasks in parallel, then triggers callback with all results
+        result = chord(header)(callback)
+
+        logger.info(f"Successfully enqueued crawl chord. Task ID: {result.id}")
+        return result.id
+
+    except Exception as exc:
+        logger.error(f"Failed to enqueue daily crawl chord: {exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
+
+@app.task(bind=True)
+def send_crawl_notification(self, results: list[dict]) -> dict:
+    """Send notification after crawl completion."""
+    stats = [CrawlServiceStats.from_dict(r) for r in results]
+
+    report = CrawlReport(stats)
+
+    config = load_app_config()
+    manager = NotificationManager(config)
+
+    return manager.send(report)
 
 
 @app.task(
@@ -65,7 +91,7 @@ def trigger_daily_crawl(self):
     max_retries=3,
     time_limit=300,  # Hard kill after 5 minutes
 )
-def crawl_letter_task(self, letter_str: str):
+def crawl_letter_task(self, letter_str: str) -> dict:
     """Run worker: Crawls a single letter."""
     try:
         letter = Letter(letter_str)
@@ -79,7 +105,9 @@ def crawl_letter_task(self, letter_str: str):
         stats = asyncio.run(run_crawl_job(letters=[letter], config=config))
 
         logger.info(f"Task complete for {letter}")
-        return stats
+
+        # Convert to dict for JSON serialization
+        return stats.to_dict()
 
     except Exception as exc:
         logger.error(f"Task failed for {letter}: {exc}")
