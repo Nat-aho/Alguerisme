@@ -6,11 +6,12 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel, Field
 
-from alguerisme.configs.crawler import CrawlerConfig
-from alguerisme.configs.http_client import HttpClientConfig
-from alguerisme.configs.web_dictionary import WebDictionaryConfig
-from alguerisme.configs.database import DatabaseConfig
 from alguerisme.configs.celery import CeleryConfig
+from alguerisme.configs.crawler import CrawlerConfig
+from alguerisme.configs.database import DatabaseConfig
+from alguerisme.configs.http_client import HttpClientConfig
+from alguerisme.configs.notifications import NotificationConfig
+from alguerisme.configs.web_dictionary import WebDictionaryConfig
 
 
 class AppConfig(BaseModel):
@@ -35,6 +36,10 @@ class AppConfig(BaseModel):
     crawler: CrawlerConfig = Field(
         default_factory=lambda: CrawlerConfig(),
         description="Crawler configuration",
+    )
+    notifications: NotificationConfig = Field(
+        default_factory=lambda: NotificationConfig(),
+        description="Notification services configuration",
     )
 
     @classmethod
