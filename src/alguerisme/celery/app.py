@@ -29,6 +29,7 @@ def build_celery_app() -> Celery:
         task_serializer=config.celery_config.task_serializer,
         accept_content=config.celery_config.accept_content,
         result_serializer=config.celery_config.result_serializer,
+        result_expires=config.celery_config.result_expires,
     )
 
     app.conf.beat_schedule = {

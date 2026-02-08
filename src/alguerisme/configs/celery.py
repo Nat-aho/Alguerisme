@@ -19,6 +19,7 @@ class CeleryConfig(BaseModel):
     task_serializer: str = Field(default="json")
     result_serializer: str = Field(default="json")
     accept_content: list[str] = Field(default_factory=lambda: ["json"])
+    result_expires: int = Field(default=3600)
 
     @property
     def password(self) -> str:
@@ -32,9 +33,10 @@ class CeleryConfig(BaseModel):
         return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @property
-    def result_backend(self) -> str | None:
+    def result_backend(self) -> str:
         """Construct the Redis Backend URL."""
-        return None
+        auth = f":{self.password}@" if self.password else ""
+        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @classmethod
     def from_env(cls) -> "CeleryConfig":
