@@ -51,6 +51,7 @@ services:
     secrets:
           - db_password
           - redis_password
+          - telegram_bot_token
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
@@ -75,6 +76,7 @@ services:
     secrets:
       - db_password
       - redis_password
+      - telegram_bot_token
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src  # Mount source so worker updates with code changes
@@ -95,6 +97,7 @@ services:
     secrets:
       - db_password
       - redis_password
+      - telegram_bot_token
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
@@ -115,3 +118,5 @@ secrets:
     file: ./secrets/dev/db_password.txt
   redis_password:
     file: ./secrets/dev/redis_password.txt
+  telegram_bot_token:
+    file: ./secrets/dev/telegram_bot_token.txt
