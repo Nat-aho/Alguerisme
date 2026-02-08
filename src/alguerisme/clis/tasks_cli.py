@@ -3,7 +3,7 @@
 import typer
 from rich.console import Console
 
-from alguerisme.utils.alphabet import Letter
+from alguerisme.utils.alphabet import Alphabet, normalize_letters
 
 app = typer.Typer(
     name="alguerisme-tasks",
@@ -17,24 +17,52 @@ console = Console()
 
 @app.command()
 def trigger_crawler(
-    letters: list[str] = typer.Option(
-        ...,
+    letters: str = typer.Option(
+        None,
         "--letters",
         "-l",
-        help="Specific letters to crawl (e.g., -l a -l b -l c)",
+        help="Specific letters to crawl (e.g. 'ABC'). "
+        "If not provided, crawls all letters A-Z.",
     ),
 ):
-    """Enqueue crawler tasks for the specified letters."""
-    from alguerisme.celery.app import crawl_letter_task
+    """Trigger crawler on specified letters.
+
+    Parameters
+    ----------
+    letters : str, optional
+        String of letters to crawl (e.g. 'ABC'). If not provided, crawls
+        all letters A-Z.
+    """
+    from alguerisme.celery.app import trigger_daily_crawl
 
     try:
-        validated_letters = [Letter(letter) for letter in letters]
+        if letters is not None:
+            if not letters:
+                console.print("[red]Error:[/red] Letters string cannot be empty")
+                raise typer.Exit(code=1)
 
-        # Convert to strings at Celery boundary (for JSON serialization)
-        for letter in validated_letters:
-            crawl_letter_task.delay(str(letter))
-            console.print(f"[green]✓[/green] Enqueued task for {letter}")
+            letters_to_crawl = normalize_letters(list(letters), unique=True)
+            console.print(
+                f"[yellow]→[/yellow] Crawling {len(letters_to_crawl)} letter(s): "
+                f"{', '.join(letters_to_crawl)}"
+            )
+        else:
+            # Use default alphabet (all letters A-Z)
+            letters_to_crawl = [str(letter) for letter in Alphabet.standard()]
+            console.print(
+                f"[yellow]→[/yellow] Crawling ALL {len(letters_to_crawl)} letters: "
+                f"{', '.join(letters_to_crawl)}"
+            )
+
+        result = trigger_daily_crawl.delay(letters_to_crawl)
+        console.print(f"[green]✓[/green] Triggered crawl (task_id: {result.id})")
+        console.print(
+            "[yellow]→[/yellow] Notification will be sent when all tasks complete"
+        )
 
     except ValueError as e:
-        console.print(f"[red]Invalid letter:[/red] {e}")
+        console.print(f"[red]Validation error:[/red] {e}")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Failed to trigger crawl:[/red] {e}")
         raise typer.Exit(code=1)
