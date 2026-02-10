@@ -34,8 +34,10 @@ from alembic import context
 from alguerisme.configs.database import DatabaseConfig
 from alguerisme.core.database import get_database_url
 from alguerisme.core.database.models import (
-    EntryURLs,  # noqa: F401 - Import to register with SQLModel
+    EntryURLs,
 )
+
+_alembic_models = (EntryURLs,)  # Add SQLModel models here for autogeneration support
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
