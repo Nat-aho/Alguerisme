@@ -117,7 +117,13 @@ async def _crawl_letter_generator(
         known_urls.update(new_urls)
 
         if result.success:
-            result.urls = set(new_urls)
+            result = PageCrawlResult(
+                letter=result.letter,
+                page_number=result.page_number,
+                urls=set(new_urls),
+                status_code=result.status_code,
+                error=result.error,
+            )
 
         yield result
 
