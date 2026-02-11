@@ -81,7 +81,7 @@ def send_crawl_notification(self, results: list[dict]) -> dict:
     config = load_app_config()
     manager = NotificationManager(config)
 
-    return manager.send(report)
+    return asyncio.run(manager.send(report))
 
 
 @app.task(

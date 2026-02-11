@@ -1,6 +1,5 @@
 """Generic notification manager for all report types."""
 
-import asyncio
 import logging
 from enum import Enum
 
@@ -32,10 +31,9 @@ class NotificationManager:
         """
         self.config = config
 
-    def send(self, report: Reportable) -> dict:
+    async def send(self, report: Reportable) -> dict:
         """Send report to all enabled notification channels."""
-        # Run async send in sync context
-        return asyncio.run(self._send_async(report))
+        return await self._send_async(report)
 
     async def _send_async(self, report: Reportable) -> dict:
         """Async implementation of send."""
