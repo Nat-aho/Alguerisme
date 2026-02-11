@@ -36,19 +36,21 @@ async def run_crawl_job(
     engine = create_database_engine(config.db_config)
 
     try:
-        with Session(engine) as session:
-            async with Crawler.from_config(
-                web_dictionary_config=config.web_dictionary,
-                http_client_config=config.http_client,
-                crawler_config=config.crawler,
-            ) as crawler:
+        # Use async context manager for crawler to ensure HTTP client cleanup
+        async with Crawler.from_config(
+            web_dictionary_config=config.web_dictionary,
+            http_client_config=config.http_client,
+            crawler_config=config.crawler,
+        ) as crawler:
+            # Create session within async context
+            with Session(engine) as session:
                 service = CrawlerService(crawler, session)
                 stats = await service.run(letters=letters)
                 return stats
 
-    except Exception as e:
-        logger.error(f"Job failed: {e}")
-        raise e
+    except Exception:
+        logger.exception("Job failed")
+        raise
 
     finally:
         engine.dispose()
