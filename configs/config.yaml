@@ -16,6 +16,7 @@ http_client:
     - 503
     - 504
   retry_start_timeout: 1.0
+  max_response_size: 10485760  # 10 MB in bytes
 
 # Web Dictionary Configuration
 web_dictionary:

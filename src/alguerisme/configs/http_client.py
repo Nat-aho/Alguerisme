@@ -27,3 +27,7 @@ class HttpClientConfig(BaseModel):
         default=(429, 500, 502, 503, 504),
         description="HTTP status codes that trigger retries",
     )
+    max_response_size: int = Field(
+        default=10 * 1024 * 1024,  # 10 MB
+        description="Maximum response size in bytes (prevents memory exhaustion)",
+    )
