@@ -17,25 +17,25 @@ services:
       - alguerisme-network
 
   redis:
-        image: redis:7-alpine
-        container_name: alguerisme-redis-dev
-        ports:
-          - "${REDIS_PORT:-6379}:6379"
-        secrets:
-          - redis_password
-        volumes:
-          - ./scripts/redis-entrypoint.sh:/usr/local/bin/redis-entrypoint.sh
-          - ./scripts/redis-healthcheck.sh:/usr/local/bin/redis-healthcheck.sh
+    image: redis:7-alpine
+    container_name: alguerisme-redis-dev
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    secrets:
+      - redis_password
+    volumes:
+      - ./scripts/redis-entrypoint.sh:/usr/local/bin/redis-entrypoint.sh
+      - ./scripts/redis-healthcheck.sh:/usr/local/bin/redis-healthcheck.sh
 
-        command: ["/usr/local/bin/redis-entrypoint.sh"]
-        
-        healthcheck:
-          test: ["CMD", "/usr/local/bin/redis-healthcheck.sh"]
-          interval: 5s
-          timeout: 5s
-          retries: 5
-        networks:
-          - alguerisme-network
+    command: ["/usr/local/bin/redis-entrypoint.sh"]
+    
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/redis-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alguerisme-network
 
   app:
     image: alguerisme-core:dev
@@ -49,9 +49,9 @@ services:
     env_file:
       - .env.dev
     secrets:
-          - db_password
-          - redis_password
-          - telegram_bot_token
+      - db_password
+      - redis_password
+      - telegram_bot_token
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
