@@ -44,11 +44,22 @@ async def stream_pages_async(
         _producer_task(queue, letters, web_dictionary, http_client, crawler_config)
     )
 
+    # Timeout after 5 minutes of inactivity to prevent indefinite hanging
+    # This protects against producer failure without sending sentinel
+    timeout = 300.0  # 5 minutes
+
     while True:
-        item = await queue.get()
-        if item is None:
-            break
-        yield item
+        try:
+            item = await asyncio.wait_for(queue.get(), timeout=timeout)
+            if item is None:
+                break
+            yield item
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Queue timeout after {timeout}s - producer may have failed"
+            )
+            producer.cancel()
+            raise RuntimeError("Crawl producer task timed out or failed")
 
     await producer
 
