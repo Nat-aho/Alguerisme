@@ -75,22 +75,26 @@ class HttpClientSession:
             try:
                 response = await request_method(url, **kwargs)
 
-                if response.status_code in self.retry_status_codes:
+                # Validation block - any exception here will close response
+                try:
+                    if response.status_code in self.retry_status_codes:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable status code {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+
+                    self._validate_response_size(response)
+
+                    # Success path - return without closing
+                    return response
+
+                except (httpx.RequestError, httpx.HTTPStatusError):
+                    # Close and retry
                     await response.aclose()
-                    raise httpx.HTTPStatusError(
-                        f"Retryable status code {response.status_code}",
-                        request=response.request,
-                        response=response,
-                    )
-
-                self._validate_response_size(response)
-
-                return response
+                    raise
 
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
-                if response is not None and not response.is_closed:
-                    await response.aclose()
-
                 attempt += 1
                 if attempt > self.max_retries:
                     logger.warning(f"Max retries reached for {url}: {e}")
