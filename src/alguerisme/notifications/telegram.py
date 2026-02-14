@@ -24,9 +24,14 @@ class TelegramNotifier:
             )
             return
 
-        self.bot = Bot(token=bot_token)
-        self.chat_id = chat_id
-        self.parse_mode = parse_mode
+        try:
+            self.bot = Bot(token=bot_token)
+            self.chat_id = chat_id
+            self.parse_mode = parse_mode
+        except Exception as e:
+            self._telegram_available = False
+            logger.error(f"Failed to initialize Telegram bot: {e}")
+            return
 
     async def send(self, message: str) -> bool:
         """Send a text message to Telegram."""

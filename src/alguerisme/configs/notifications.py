@@ -27,6 +27,8 @@ class TelegramConfig(BaseModel):
     @property
     def bot_token(self) -> str:
         """Retrieve Telegram bot token from secrets."""
+        if not self.enabled:
+            raise RuntimeError("Telegram notifications are disabled")
         if self._bot_token is None:
             self._bot_token = SecretStr(get_secret("telegram_bot_token"))
         return self._bot_token.get_secret_value()
