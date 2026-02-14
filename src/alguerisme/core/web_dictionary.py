@@ -44,7 +44,7 @@ class WebDictionary:
 
     def parse_page_urls(self, html: str) -> List[str]:
         """Parse vocabulary entry URLs from an index page's HTML."""
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "lxml")
 
         # Limit search to content area (avoids navigation links, etc.)
         content_div = soup.select_one(self.content_selector)
