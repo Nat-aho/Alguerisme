@@ -38,21 +38,29 @@ class HttpClientSession:
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get or create the async client (thread-safe with lock)."""
-        # Fast path: client already exists
+        # Fast path: client already exists and is open
         if self._client is not None and not self._client.is_closed:
             return self._client
 
         # Slow path: need to create client (use lock to prevent race condition)
         async with self._client_lock:
-            # Double-check: another coroutine might have created it while we waited
-            if self._client is None or self._client.is_closed:
-                headers = {"User-Agent": self.user_agent}
-                if self.headers:
-                    headers.update(self.headers)
+            # Double-check: another coroutine might have fixed it while we waited
+            if self._client is not None and not self._client.is_closed:
+                return self._client
 
-                self._client = httpx.AsyncClient(
-                    headers=headers, timeout=self.timeout, follow_redirects=True
-                )
+            # Clean up closed client if exists
+            if self._client is not None and self._client.is_closed:
+                await self._client.aclose()
+
+            # Create new client
+            headers = {"User-Agent": self.user_agent}
+            if self.headers:
+                headers.update(self.headers)
+
+            self._client = httpx.AsyncClient(
+                headers=headers, timeout=self.timeout, follow_redirects=True
+            )
+
         return self._client
 
     async def get(self, url: str) -> httpx.Response:
