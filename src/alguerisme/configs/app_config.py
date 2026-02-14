@@ -18,27 +18,27 @@ class AppConfig(BaseModel):
     """Unified application configuration model."""
 
     db_config: DatabaseConfig = Field(
-        default_factory=lambda: DatabaseConfig.from_env(),
+        default_factory=DatabaseConfig.from_env,
         description="Database configuration",
     )
     celery_config: CeleryConfig = Field(
-        default_factory=lambda: CeleryConfig.from_env(),
+        default_factory=CeleryConfig.from_env,
         description="Celery configuration",
     )
     http_client: HttpClientConfig = Field(
-        default_factory=lambda: HttpClientConfig(),
+        default_factory=HttpClientConfig,
         description="HTTP client configuration",
     )
     web_dictionary: WebDictionaryConfig = Field(
-        default_factory=lambda: WebDictionaryConfig(),
+        default_factory=WebDictionaryConfig,
         description="Web dictionary configuration",
     )
     crawler: CrawlerConfig = Field(
-        default_factory=lambda: CrawlerConfig(),
+        default_factory=CrawlerConfig,
         description="Crawler configuration",
     )
     notifications: NotificationConfig = Field(
-        default_factory=lambda: NotificationConfig(),
+        default_factory=NotificationConfig,
         description="Notification services configuration",
     )
 
