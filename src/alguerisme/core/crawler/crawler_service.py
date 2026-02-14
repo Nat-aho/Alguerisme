@@ -6,7 +6,7 @@ import logging
 from sqlmodel import Session
 
 from alguerisme.core.crawler.crawler import Crawler
-from alguerisme.core.crawler.models import CrawlServiceStats
+from alguerisme.core.crawler.models import CrawlStats
 from alguerisme.core.database.crud import get_or_create_entry_url
 from alguerisme.utils.alphabet import Letter
 
@@ -21,7 +21,7 @@ class CrawlerService:
         self.crawler = crawler
         self.session = session
 
-    async def run(self, letters: list[Letter]) -> CrawlServiceStats:
+    async def run(self, letters: list[Letter]) -> CrawlStats:
         """Crawl the dictionary for the given letters and save URLs to the DB.
 
         Parameters
@@ -31,13 +31,13 @@ class CrawlerService:
 
         Returns
         -------
-            CrawlServiceStats
+            CrawlStats
                 Statistics from the crawl operation
 
         """
         logger.info(f"Starting async crawl and save for letters: {letters}")
 
-        stats = CrawlServiceStats.empty()
+        stats = CrawlStats.empty()
 
         # Iterate over the async generator
         async for page_result in self.crawler.stream(letters):

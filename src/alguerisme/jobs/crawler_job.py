@@ -9,7 +9,7 @@ from alguerisme.configs import AppConfig
 from alguerisme.core.crawler.crawler import Crawler
 from alguerisme.core.database import create_database_engine
 from alguerisme.core.crawler.crawler_service import CrawlerService
-from alguerisme.core.crawler.models import CrawlServiceStats
+from alguerisme.core.crawler.models import CrawlStats
 from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def run_crawl_job(
     letters: list[Letter], config: AppConfig
-) -> CrawlServiceStats:
+) -> CrawlStats:
     """Run the crawl job for the specified letters.
 
     Parameters
@@ -29,7 +29,7 @@ async def run_crawl_job(
 
     Returns
     -------
-    CrawlServiceStats
+    CrawlStats
         Statistics from the crawl operation
 
     """

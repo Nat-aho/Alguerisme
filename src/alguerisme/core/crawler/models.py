@@ -37,7 +37,7 @@ class PageCrawlResult:
 
 
 @dataclass
-class CrawlServiceStats:
+class CrawlStats:
     """Statistics for a crawling session."""
 
     crawled_pages: int = 0
@@ -66,8 +66,8 @@ class CrawlServiceStats:
         )
 
     @classmethod
-    def empty(cls) -> "CrawlServiceStats":
-        """Create an empty CrawlServiceStats instance."""
+    def empty(cls) -> "CrawlStats":
+        """Create an empty CrawlStats instance."""
         return cls(urls_saved=0, urls_skipped=0, urls_failed=0)
 
     def to_dict(self) -> dict:
@@ -80,9 +80,80 @@ class CrawlServiceStats:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CrawlServiceStats":
+    def from_dict(cls, data: dict) -> "CrawlStats":
         """Create instance from dict."""
         return cls(
+            crawled_pages=data.get("crawled_pages", 0),
+            urls_saved=data.get("urls_saved", 0),
+            urls_skipped=data.get("urls_skipped", 0),
+            urls_failed=data.get("urls_failed", 0),
+        )
+
+
+@dataclass
+class LetterCrawlResult:
+    """Result from crawling a single letter (task-level)."""
+
+    letter: str
+    status: str  # "success" | "failed"
+    error: Optional[str] = None
+
+    # Stats (meaningful when status="success", empty when "failed")
+    crawled_pages: int = 0
+    urls_saved: int = 0
+    urls_skipped: int = 0
+    urls_failed: int = 0
+
+    @property
+    def is_failed(self) -> bool:
+        """Whether the letter crawl failed."""
+        return self.status == "failed"
+
+    @property
+    def total_urls(self) -> int:
+        """Total URLs processed."""
+        return self.urls_saved + self.urls_skipped + self.urls_failed
+
+    @classmethod
+    def success(cls, letter: str, stats: CrawlStats) -> "LetterCrawlResult":
+        """Create a successful result from CrawlStats."""
+        return cls(
+            letter=letter,
+            status="success",
+            crawled_pages=stats.crawled_pages,
+            urls_saved=stats.urls_saved,
+            urls_skipped=stats.urls_skipped,
+            urls_failed=stats.urls_failed,
+        )
+
+    @classmethod
+    def failed(cls, letter: str, error: str) -> "LetterCrawlResult":
+        """Create a failed result."""
+        return cls(
+            letter=letter,
+            status="failed",
+            error=error,
+        )
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dict."""
+        return {
+            "letter": self.letter,
+            "status": self.status,
+            "error": self.error,
+            "crawled_pages": self.crawled_pages,
+            "urls_saved": self.urls_saved,
+            "urls_skipped": self.urls_skipped,
+            "urls_failed": self.urls_failed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "LetterCrawlResult":
+        """Create instance from dict."""
+        return cls(
+            letter=data["letter"],
+            status=data["status"],
+            error=data.get("error"),
             crawled_pages=data.get("crawled_pages", 0),
             urls_saved=data.get("urls_saved", 0),
             urls_skipped=data.get("urls_skipped", 0),
@@ -104,13 +175,14 @@ class CrawlMetrics:
     timestamp: str
 
     @classmethod
-    def from_results(cls, results: list[CrawlServiceStats]) -> "CrawlMetrics":
-        """Compute metrics from crawl results."""
-        successful_stats = [r for r in results if isinstance(r, CrawlServiceStats)]
+    def from_results(cls, results: list[LetterCrawlResult]) -> "CrawlMetrics":
+        """Compute metrics from letter crawl results."""
+        successful_stats = [r for r in results if not r.is_failed]
+        failed_stats = [r for r in results if r.is_failed]
 
         total_letters = len(results)
         successful_count = len(successful_stats)
-        failed_count = total_letters - successful_count
+        failed_count = len(failed_stats)
 
         total_urls = sum(s.total_urls for s in successful_stats)
         urls_saved = sum(s.urls_saved for s in successful_stats)

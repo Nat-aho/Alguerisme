@@ -1,10 +1,11 @@
 from .crawler import Crawler
 from .crawler_service import CrawlerService
-from .models import CrawlServiceStats, PageCrawlResult
+from .models import CrawlStats, LetterCrawlResult, PageCrawlResult
 
 __all__ = [
     "Crawler",
     "CrawlerService",
-    "CrawlServiceStats",
+    "CrawlStats",
+    "LetterCrawlResult",
     "PageCrawlResult",
 ]

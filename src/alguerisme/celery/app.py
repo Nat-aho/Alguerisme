@@ -4,10 +4,11 @@ import asyncio
 import logging
 
 from celery import Celery, chord
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.schedules import crontab
 
 from alguerisme.configs.loader import load_app_config
-from alguerisme.core.crawler.models import CrawlServiceStats
+from alguerisme.core.crawler.models import LetterCrawlResult
 from alguerisme.jobs import run_crawl_job
 from alguerisme.notifications.manager import NotificationManager
 from alguerisme.reports import CrawlReport
@@ -37,7 +38,6 @@ def build_celery_app() -> Celery:
 
     app.conf.beat_schedule = {
         "daily-crawl-midnight": {
-            # Note: We point to THIS file now
             "task": "alguerisme.celery.app.trigger_daily_crawl",
             "schedule": crontab(hour=0, minute=0),
         },
@@ -74,9 +74,17 @@ def trigger_daily_crawl(self, letters: list[str] | None = None) -> str:
 @app.task(bind=True)
 def send_crawl_notification(self, results: list[dict]) -> dict:
     """Send notification after crawl completion."""
-    stats = [CrawlServiceStats.from_dict(r) for r in results]
+    letter_results = [LetterCrawlResult.from_dict(r) for r in results]
 
-    report = CrawlReport(stats)
+    successful = [r for r in letter_results if not r.is_failed]
+    failed = [r for r in letter_results if r.is_failed]
+
+    logger.info(f"Crawl complete: {len(successful)} successful, {len(failed)} failed")
+    if failed:
+        failed_letters = [r.letter for r in failed]
+        logger.warning(f"Failed letters: {failed_letters}")
+
+    report = CrawlReport(letter_results)
 
     config = load_app_config()
     manager = NotificationManager(config)
@@ -86,29 +94,52 @@ def send_crawl_notification(self, results: list[dict]) -> dict:
 
 @app.task(
     bind=True,
-    autoretry_for=(Exception,),
+    soft_time_limit=900,  # 15 minutes - raises exception
+    time_limit=960,  # 16 minutes - hard kill
     retry_backoff=60,  # Wait 1m, 2m, 4m... on failure
     max_retries=3,
-    time_limit=300,  # Hard kill after 5 minutes
 )
 def crawl_letter_task(self, letter_str: str) -> dict:
-    """Run worker: Crawls a single letter."""
+    """Crawl a single letter."""
     try:
         letter = Letter(letter_str)
     except ValueError as e:
         logger.error(f"Invalid letter received: {letter_str} - {e}")
-        raise
+        return LetterCrawlResult.failed(letter_str, f"Invalid letter: {e}").to_dict()
 
-    logger.info(f"Worker processing letter: {letter}")
+    logger.info(
+        f"Worker processing letter: {letter} "
+        f"(attempt {self.request.retries + 1}/{self.max_retries + 1})"
+    )
+
     config = load_app_config()
+
     try:
         stats = asyncio.run(run_crawl_job(letters=[letter], config=config))
-
         logger.info(f"Task complete for {letter}")
 
-        # Convert to dict for JSON serialization
-        return stats.to_dict()
+        return LetterCrawlResult.success(letter=str(letter), stats=stats).to_dict()
+
+    except SoftTimeLimitExceeded:
+        logger.error(f"Task exceeded soft time limit for {letter}")
+        return LetterCrawlResult.failed(
+            letter=str(letter), error="Task exceeded time limit"
+        ).to_dict()
 
     except Exception as exc:
-        logger.error(f"Task failed for {letter}: {exc}")
-        raise self.retry(exc=exc)
+        if self.request.retries < self.max_retries:
+            logger.warning(
+                f"Task failed for {letter}, retrying "
+                f"(attempt {self.request.retries + 1}/{self.max_retries}): {exc}"
+            )
+            raise self.retry(exc=exc)
+
+        else:
+            logger.error(
+                f"Task failed for {letter} after {self.max_retries} retries: {exc}",
+                exc_info=True,
+            )
+            return LetterCrawlResult.failed(
+                letter=str(letter),
+                error=f"Failed after {self.max_retries} retries: {str(exc)}",
+            ).to_dict()

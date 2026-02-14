@@ -2,7 +2,7 @@
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from alguerisme.core.crawler.models import CrawlMetrics, CrawlServiceStats
+from alguerisme.core.crawler.models import CrawlMetrics, LetterCrawlResult
 
 
 class CrawlReport:
@@ -22,15 +22,15 @@ class CrawlReport:
 
     def __init__(
         self,
-        results: list[CrawlServiceStats],
+        results: list[LetterCrawlResult],
     ):
         """
         Initialize crawl report.
 
         Parameters
         ----------
-        results : list[CrawlServiceStats]
-            List of statistics from each letter crawl task
+        results : list[LetterCrawlResult]
+            List of results from each letter crawl task
         template : ReportTemplate, optional
             Template configuration. Uses default if not provided.
         """
