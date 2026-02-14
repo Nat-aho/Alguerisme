@@ -18,11 +18,11 @@ class AppConfig(BaseModel):
     """Unified application configuration model."""
 
     db_config: DatabaseConfig = Field(
-        default_factory=DatabaseConfig.from_env,
+        default_factory=DatabaseConfig,
         description="Database configuration",
     )
     celery_config: CeleryConfig = Field(
-        default_factory=CeleryConfig.from_env,
+        default_factory=CeleryConfig,
         description="Celery configuration",
     )
     http_client: HttpClientConfig = Field(

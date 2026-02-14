@@ -10,34 +10,53 @@ from alguerisme.utils.secrets import get_secret
 class DatabaseConfig(BaseModel):
     """PostgreSQL database configuration settings.
 
-    All settings are loaded from environment variables.
+    Connection settings (host, port, user, database) are loaded from
+    environment variables. Pool settings are configured via YAML config file.
 
     Environment Variables:
-        DATABASE_HOST: PostgreSQL host (default: localhost)
-        DATABASE_PORT: PostgreSQL port (default: 5432)
-        DATABASE_USER: PostgreSQL username (default: alguerisme)
-        DATABASE_NAME: PostgreSQL database name (default: alguerisme)
-        DATABASE_ECHO: Echo SQL queries for debugging (default: false)
+        DATABASE_HOST: PostgreSQL host
+        DATABASE_PORT: PostgreSQL port
+        DATABASE_USER: PostgreSQL username
+        DATABASE_NAME: PostgreSQL database name
 
     """
 
     model_config = {"arbitrary_types_allowed": True}
 
+    # Connection settings - loaded from environment
     host: str = Field(
-        default="localhost",
+        default_factory=lambda: get_env_or_die("DATABASE_HOST"),
         description="PostgreSQL host",
     )
     port: int = Field(
-        default=5432,
+        default_factory=lambda: int(get_env_or_die("DATABASE_PORT")),
         description="PostgreSQL port",
     )
     user: str = Field(
-        default="alguerisme",
+        default_factory=lambda: get_env_or_die("DATABASE_USER"),
         description="PostgreSQL username",
     )
     database: str = Field(
-        default="alguerisme",
+        default_factory=lambda: get_env_or_die("DATABASE_NAME"),
         description="PostgreSQL database name",
+    )
+
+    # Pool settings - configured in YAML
+    pool_size: int = Field(
+        default=5,
+        description="Connection pool size",
+    )
+    max_overflow: int = Field(
+        default=10,
+        description="Maximum overflow connections beyond pool_size",
+    )
+    pool_pre_ping: bool = Field(
+        default=True,
+        description="Validate connections before using them",
+    )
+    pool_recycle: int = Field(
+        default=3600,
+        description="Recycle connections after N seconds (default: 1 hour)",
     )
     echo: bool = Field(
         default=False,
@@ -67,21 +86,3 @@ class DatabaseConfig(BaseModel):
                 database=self.database,
             )
         return self._url
-
-    @classmethod
-    def from_env(cls) -> "DatabaseConfig":
-        """Create DatabaseConfig from environment variables.
-
-        Returns
-        -------
-        DatabaseConfig
-            Configuration from environment variables
-
-        """
-        return cls(
-            host=get_env_or_die("DATABASE_HOST"),
-            port=int(get_env_or_die("DATABASE_PORT")),
-            user=get_env_or_die("DATABASE_USER"),
-            database=get_env_or_die("DATABASE_NAME"),
-            echo=get_env_or_die("DATABASE_ECHO").lower() in ("true", "1", "yes"),
-        )

@@ -8,12 +8,33 @@ from alguerisme.utils.secrets import get_secret
 
 
 class CeleryConfig(BaseModel):
-    """Configuration for Celery and Redis."""
+    """Configuration for Celery and Redis.
 
-    redis_host: str = Field(default="redis")
-    redis_port: int = Field(default=6379)
-    redis_db: int = Field(default=0)
+    Connection settings (redis_host, redis_port, redis_db) are loaded from
+    environment variables. Other settings are configured via YAML config file.
 
+    Environment Variables:
+        REDIS_HOST: Redis host
+        REDIS_PORT: Redis port
+        REDIS_DB: Redis database number
+
+    """
+
+    # Connection settings - loaded from environment
+    redis_host: str = Field(
+        default_factory=lambda: os.getenv("REDIS_HOST", "redis"),
+        description="Redis host",
+    )
+    redis_port: int = Field(
+        default_factory=lambda: int(os.getenv("REDIS_PORT", "6379")),
+        description="Redis port",
+    )
+    redis_db: int = Field(
+        default_factory=lambda: int(os.getenv("REDIS_DB", "0")),
+        description="Redis database number",
+    )
+
+    # Celery settings - configured in YAML
     timezone: str = Field(default="Europe/Rome")
     enable_utc: bool = Field(default=True)
     task_serializer: str = Field(default="json")
@@ -52,12 +73,4 @@ class CeleryConfig(BaseModel):
             )
         return self._backend_url
 
-    @classmethod
-    def from_env(cls) -> "CeleryConfig":
-        """Load configuration structure from environment."""
-        return cls(
-            redis_host=os.getenv("REDIS_HOST", "redis"),
-            redis_port=int(os.getenv("REDIS_PORT", 6379)),
-            redis_db=int(os.getenv("REDIS_DB", 0)),
-            timezone=os.getenv("CELERY_TIMEZONE", "Europe/Rome"),
-        )
+

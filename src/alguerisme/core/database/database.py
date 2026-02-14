@@ -54,7 +54,14 @@ def create_database_engine(config: DatabaseConfig):
 
     """
     database_url = get_database_url(config)
-    return create_engine(database_url, echo=config.echo)
+    return create_engine(
+        database_url,
+        echo=config.echo,
+        pool_size=config.pool_size,
+        max_overflow=config.max_overflow,
+        pool_pre_ping=config.pool_pre_ping,
+        pool_recycle=config.pool_recycle,
+    )
 
 
 def get_database_url(config: DatabaseConfig) -> URL:
