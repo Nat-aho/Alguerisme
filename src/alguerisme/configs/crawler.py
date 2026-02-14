@@ -12,3 +12,8 @@ class CrawlerConfig(BaseModel):
     request_delay: float = Field(
         default=1.0, description="Delay between requests per worker (s)"
     )
+    queue_timeout: float = Field(
+        default=60.0,
+        description="Timeout in seconds waiting for next item in queue. "
+        "Prevents indefinite waiting if producer hangs.",
+    )
