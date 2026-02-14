@@ -71,10 +71,12 @@ class HttpClientSession:
         backoff = self.retry_start_timeout
 
         while True:
+            response = None
             try:
                 response = await request_method(url, **kwargs)
 
                 if response.status_code in self.retry_status_codes:
+                    await response.aclose()
                     raise httpx.HTTPStatusError(
                         f"Retryable status code {response.status_code}",
                         request=response.request,
@@ -86,6 +88,9 @@ class HttpClientSession:
                 return response
 
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                if response is not None and not response.is_closed:
+                    await response.aclose()
+
                 attempt += 1
                 if attempt > self.max_retries:
                     logger.warning(f"Max retries reached for {url}: {e}")
