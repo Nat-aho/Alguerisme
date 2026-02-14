@@ -11,10 +11,8 @@ from alguerisme.utils.alphabet import normalize_letter
 from .models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
-def create_entry_url(
-    session: Session, entry_create: EntryURLsCreate, commit: bool = False
-) -> EntryURLs:
-    """Create a new URL entry.
+def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryURLs:
+    """Create a new URL entry and commit.
 
     Parameters
     ----------
@@ -22,9 +20,6 @@ def create_entry_url(
         Database session
     entry_create : EntryURLsCreate
         Data for creating the entry
-    commit : bool
-        Whether to commit the transaction immediately. Default False.
-        Allows caller to control transaction boundaries.
 
     Returns
     -------
@@ -32,23 +27,40 @@ def create_entry_url(
         The created EntryURLs instance
 
     """
-    # Convert Create model to DB model
     entry = EntryURLs.model_validate(entry_create)
     session.add(entry)
-    if commit:
-        session.commit()
-        session.refresh(entry)
-    else:
-        # Flush to get the ID without committing
-        session.flush()
-        session.refresh(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry
+
+
+def add_entry_url_to_session(
+    session: Session, entry_create: EntryURLsCreate
+) -> EntryURLs:
+    """Add a new URL entry to session without committing.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    entry_create : EntryURLsCreate
+        Data for creating the entry
+
+    Returns
+    -------
+    EntryURLs
+        The created EntryURLs instance (ID will be None until commit)
+
+    """
+    entry = EntryURLs.model_validate(entry_create)
+    session.add(entry)
     return entry
 
 
 def get_or_create_entry_url(
-    session: Session, url: str, letter: Optional[str] = None, commit: bool = False
+    session: Session, url: str, letter: Optional[str] = None
 ) -> tuple[EntryURLs, bool]:
-    """Get existing URL entry or create new one.
+    """Get existing URL entry or create and commit new one.
 
     Parameters
     ----------
@@ -58,9 +70,6 @@ def get_or_create_entry_url(
         The URL to get or create
     letter : Optional[str]
         Optional letter (used only if creating). Will be normalized to uppercase.
-    commit : bool
-        Whether to commit the transaction immediately. Default False.
-        Allows caller to control transaction boundaries.
 
     Returns
     -------
@@ -74,9 +83,39 @@ def get_or_create_entry_url(
         return existing, False
 
     normalized_letter = normalize_letter(letter) if letter else None
-
     entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
-    entry = create_entry_url(session, entry_create, commit=commit)
+    entry = create_entry_url(session, entry_create)
+    return entry, True
+
+
+def get_or_add_entry_url_to_session(
+    session: Session, url: str, letter: Optional[str] = None
+) -> tuple[EntryURLs, bool]:
+    """Get existing URL entry or add new one to session without committing.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    url : str
+        The URL to get or create
+    letter : Optional[str]
+        Optional letter (used only if creating). Will be normalized to uppercase.
+
+    Returns
+    -------
+    tuple[EntryURLs, bool]
+        A tuple containing the EntryURLs instance and a boolean indicating
+        whether it was created (True) or already existed (False)
+
+    """
+    existing = find_entry_url_by_url(session, url)
+    if existing:
+        return existing, False
+
+    normalized_letter = normalize_letter(letter) if letter else None
+    entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
+    entry = add_entry_url_to_session(session, entry_create)
     return entry, True
 
 
@@ -353,7 +392,7 @@ def delete_entry_urls_by_letter(session: Session, letter: str) -> int:
     from sqlalchemy import delete as sql_delete
 
     normalized_letter = normalize_letter(letter)
-    statement = sql_delete(EntryURLs).where(EntryURLs.letter == normalized_letter)
+    statement = sql_delete(EntryURLs).where(EntryURLs.letter == normalized_letter)  # type: ignore[arg-type]
     result = session.exec(statement)
     session.commit()
     return result.rowcount

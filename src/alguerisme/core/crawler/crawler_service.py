@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from alguerisme.core.crawler.crawler import Crawler
 from alguerisme.core.crawler.models import CrawlStats
-from alguerisme.core.database.crud import get_or_create_entry_url
+from alguerisme.core.database.crud import get_or_add_entry_url_to_session
 from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
@@ -69,8 +69,9 @@ class CrawlerService:
         Uses a retry strategy: attempts batch commit first for performance,
         then falls back to individual commits on failure to identify specific issues.
 
-        Note: get_or_create_entry_url does NOT auto-commit. This service controls
-        all transaction boundaries to enable proper batch processing and rollbacks.
+        Note: get_or_add_entry_url_to_session does NOT auto-commit.
+        This service controls all transaction boundaries to enable proper
+        batch processing and rollbacks.
 
         Parameters
         ----------
@@ -93,7 +94,7 @@ class CrawlerService:
             """Process a single URL and update counts."""
             nonlocal saved_count, skipped_count
             # Convert Letter to str at DB boundary
-            _, created = get_or_create_entry_url(self.session, url, str(letter))
+            _, created = get_or_add_entry_url_to_session(self.session, url, str(letter))
             if created:
                 saved_count += 1
             else:
