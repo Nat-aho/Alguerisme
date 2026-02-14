@@ -101,28 +101,30 @@ class CrawlerService:
                 skipped_count += 1
 
         try:
-            # Attempt batch processing (fast path)
+            # Fast path: Attempt batch processing with single commit
+            # All URLs are added to session but nothing is persisted until commit()
             for url in urls:
                 process_url(url)
-            self.session.commit()
+            self.session.commit()  # Single transaction for all URLs
 
         except Exception as e:
-            # Batch commit failed - rollback and retry individually
+            # Batch commit failed - rollback discards ALL pending changes
             self.session.rollback()
             logger.warning(
                 f"Batch commit failed for {letter}, "
                 f"retrying {len(urls)} URLs individually: {e}"
             )
 
-            # Reset counts since rollback discarded everything
+            # Reset counts - the rollback discarded all changes from the batch attempt
             saved_count = 0
             skipped_count = 0
 
-            # Retry each URL individually to identify actual failures
+            # Slow path: Retry each URL individually with per-URL commits
+            # This allows partial success - some URLs may commit while others fail
             for url in urls:
                 try:
                     process_url(url)
-                    self.session.commit()
+                    self.session.commit()  # Individual transaction per URL
                 except Exception as individual_e:
                     self.session.rollback()
                     failed_count += 1
