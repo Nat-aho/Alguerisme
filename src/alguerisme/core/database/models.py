@@ -11,7 +11,7 @@ class EntryURLsBase(SQLModel):
     """Base model for EntryURLs with shared fields."""
 
     url: str = Field(unique=True, nullable=False, index=True)
-    letter: Optional[str] = Field(default=None, max_length=1)
+    letter: Optional[str] = Field(default=None, max_length=1, index=True)
 
 
 class EntryURLsCreate(EntryURLsBase):
