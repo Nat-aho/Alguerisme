@@ -295,7 +295,7 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
     session : Session
         Database session
     letter : str
-        Letter to count
+        Letter to count (will be normalized to uppercase)
 
     Returns
     -------
@@ -303,14 +303,17 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
         Number of URLs for the letter
 
     """
+    normalized_letter = normalize_letter(letter)
     statement = (
-        select(func.count()).select_from(EntryURLs).where(EntryURLs.letter == letter)
+        select(func.count())
+        .select_from(EntryURLs)
+        .where(EntryURLs.letter == normalized_letter)
     )
     return session.exec(statement).one()
 
 
 def delete_all_entry_urls(session: Session) -> int:
-    """Delete all URL entries.
+    """Delete all URL entries using efficient set-based delete.
 
     Parameters
     ----------
@@ -323,25 +326,23 @@ def delete_all_entry_urls(session: Session) -> int:
         Number of entries deleted
 
     """
-    statement = select(EntryURLs)
-    entries = session.exec(statement).all()
-    count = 0
-    for entry in entries:
-        session.delete(entry)
-        count += 1
+    from sqlalchemy import delete as sql_delete
+
+    statement = sql_delete(EntryURLs)
+    result = session.exec(statement)
     session.commit()
-    return count
+    return result.rowcount
 
 
 def delete_entry_urls_by_letter(session: Session, letter: str) -> int:
-    """Delete all URL entries for a specific letter.
+    """Delete all URL entries for a specific letter using efficient set-based delete.
 
     Parameters
     ----------
     session : Session
         Database session
     letter : str
-        Letter to filter by
+        Letter to filter by (will be normalized to uppercase)
 
     Returns
     -------
@@ -349,11 +350,10 @@ def delete_entry_urls_by_letter(session: Session, letter: str) -> int:
         Number of entries deleted
 
     """
-    statement = select(EntryURLs).where(EntryURLs.letter == letter)
-    entries = session.exec(statement).all()
-    count = 0
-    for entry in entries:
-        session.delete(entry)
-        count += 1
+    from sqlalchemy import delete as sql_delete
+
+    normalized_letter = normalize_letter(letter)
+    statement = sql_delete(EntryURLs).where(EntryURLs.letter == normalized_letter)
+    result = session.exec(statement)
     session.commit()
-    return count
+    return result.rowcount
