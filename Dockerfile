@@ -11,7 +11,7 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --extra cli --locked --no-install-project
+    uv sync --extra cli --extra celery --extra notifications --locked --no-install-project
 
 COPY pyproject.toml /app/pyproject.toml
 COPY uv.lock /app/uv.lock
@@ -21,7 +21,7 @@ COPY alembic.ini /app/alembic.ini
 COPY alembic /app/alembic
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --extra cli --locked
+    uv sync --extra cli --extra celery --extra notifications --locked
 
 
 # Stage 2: Runtime - slim final image

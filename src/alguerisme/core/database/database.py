@@ -1,5 +1,6 @@
 """Database utility functions for initializing and managing the database."""
 
+from sqlalchemy.engine import URL
 from sqlmodel import Session, SQLModel, create_engine
 
 from alguerisme.configs import DatabaseConfig
@@ -53,10 +54,17 @@ def create_database_engine(config: DatabaseConfig):
 
     """
     database_url = get_database_url(config)
-    return create_engine(database_url, echo=config.echo)
+    return create_engine(
+        database_url,
+        echo=config.echo,
+        pool_size=config.pool_size,
+        max_overflow=config.max_overflow,
+        pool_pre_ping=config.pool_pre_ping,
+        pool_recycle=config.pool_recycle,
+    )
 
 
-def get_database_url(config: DatabaseConfig) -> str:
+def get_database_url(config: DatabaseConfig) -> URL:
     """Build PostgreSQL database URL from configuration.
 
     Parameters
@@ -66,11 +74,8 @@ def get_database_url(config: DatabaseConfig) -> str:
 
     Returns
     -------
-    str
+    sqlalchemy.engine.URL
         SQLAlchemy database URL
 
     """
-    return (
-        f"postgresql://{config.user}:{config.password}"
-        f"@{config.host}:{config.port}/{config.database}"
-    )
+    return config.url

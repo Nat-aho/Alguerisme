@@ -1,15 +1,14 @@
 """Crawler module for fetching dictionary entry URLs."""
 
 import logging
-from typing import Optional, Sequence
 
 from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
-from alguerisme.core.crawler.models import CrawlResult
-from alguerisme.core.crawler.utils import fetch_urls_for_letters
+from alguerisme.core.crawler.utils import stream_pages_async
 from alguerisme.core.http_client import HttpClientSession
 from alguerisme.core.web_dictionary import WebDictionary
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
@@ -30,25 +29,39 @@ class Crawler:
 
         logger.info(f"Crawler initialized for {self.web_dictionary.base_url}")
 
-    def run(
-        self,
-        letters: Optional[Sequence[str]] = None,
-    ) -> CrawlResult:
-        """Run the crawler to discover dictionary entry URLs."""
-        letters = letters or self.web_dictionary.get_letters()
+    async def stream(self, letters: list[Letter]):
+        """Asynchronously stream crawl results for the given letters.
 
-        logger.info(f"Starting crawl for {len(letters)} letters: {letters}")
+        Parameters
+        ----------
+            letters: list[Letter]
+                List of validated Letter objects to crawl
 
-        crawl_result = fetch_urls_for_letters(
+        Yields
+        ------
+            PageCrawlResult
+                Results for each crawled page
+
+        """
+        async for result in stream_pages_async(
             letters=letters,
             web_dictionary=self.web_dictionary,
             http_client=self.http_client,
             crawler_config=self.crawler_config,
-        )
+        ):
+            yield result
 
-        logger.info(f"Crawl complete: {len(crawl_result.urls)} URLs fetched")
+    async def __aenter__(self):
+        """Enter the async context manager."""
+        return self
 
-        return crawl_result
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """Exit the async context manager and close the HTTP client."""
+        await self.close()
+
+    async def close(self):
+        """Close the underlying HTTP client and release resources."""
+        await self.http_client.close()
 
     @classmethod
     def from_config(

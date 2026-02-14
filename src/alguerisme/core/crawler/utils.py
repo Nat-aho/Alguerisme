@@ -1,199 +1,191 @@
 """Utility functions for crawling vocabulary entry URLs from a web dictionary."""
 
+import asyncio
 import logging
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Sequence, Set
-
-import requests
+from typing import AsyncGenerator, Sequence, Set
 
 from alguerisme.configs.crawler import CrawlerConfig
-from alguerisme.core.crawler.models import (
-    CrawlResult,
-    CrawlStatus,
-    LetterCrawlResult,
-    PageCrawlResult,
-)
+from alguerisme.core.crawler.models import PageCrawlResult
 from alguerisme.core.http_client import HttpClientSession
 from alguerisme.core.web_dictionary import WebDictionary
+from alguerisme.utils.alphabet import Letter
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_urls_for_letters(
-    letters: Sequence[str],
+async def stream_pages_async(
+    letters: Sequence[Letter],
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
-) -> CrawlResult:
-    """Fetch vocabulary entry URLs for multiple letters."""
-    logger.info(f"Starting URL discovery for letters: {letters}")
-    logger.info(f"Using {crawler_config.max_workers} parallel workers")
+) -> AsyncGenerator[PageCrawlResult, None]:
+    """Stream crawl results page by page asynchronously.
 
-    urls_by_letter: Dict[str, Set[str]] = {}
-    letters_successful = 0
-    letters_failed = 0
-    total_pages = 0
-    letter_results = {}
-    letters_completed = []
+    Parameters
+    ----------
+        letters: Sequence[Letter]
+            List of validated Letter objects to crawl
+        web_dictionary: WebDictionary
+            WebDictionary instance for building URLs and parsing pages
+        http_client: HttpClientSession
+            HTTP client session for making requests to the web dictionary
+        crawler_config: CrawlerConfig
+            Configuration for the crawler behavior
 
-    with ThreadPoolExecutor(max_workers=crawler_config.max_workers) as executor:
-        future_to_letter = {
-            executor.submit(
-                _fetch_letter_urls,
-                letter,
-                web_dictionary,
-                http_client,
-                crawler_config,
-            ): letter
-            for letter in letters
-        }
+    Yields
+    ------
+        PageCrawlResult
+            Results for each crawled page
 
-        for future in as_completed(future_to_letter):
-            letter = future_to_letter[future]
-            try:
-                result = future.result()
-                letter_results[letter] = result
-                letters_completed.append(letter)
+    """
+    queue: asyncio.Queue[PageCrawlResult | None] = asyncio.Queue()
 
-                urls_by_letter[letter] = result.urls
-                total_pages += result.pages_crawled
-
-                if result.success:
-                    letters_successful += 1
-                    logger.info(
-                        f"Letter '{letter}': {result.url_count} URLs discovered "
-                        f"({result.pages_crawled} pages)"
-                    )
-                else:
-                    letters_failed += 1
-                    logger.warning(f"Letter '{letter}' failed: {result.stopped_reason}")
-
-            except Exception as e:
-                letters_failed += 1
-                logger.exception(f"Unexpected error crawling letter '{letter}': {e}")
-                letter_results[letter] = LetterCrawlResult.from_error(letter)
-
-    logger.info("URL discovery complete")
-
-    crawl_result = CrawlResult(
-        urls_by_letter=urls_by_letter,
-        letters_crawled=letters_completed,
-        letters_successful=letters_successful,
-        letters_failed=letters_failed,
-        total_pages=total_pages,
-        letter_results=letter_results,
+    producer = asyncio.create_task(
+        _producer_task(queue, letters, web_dictionary, http_client, crawler_config)
     )
 
-    logger.info(crawl_result.summary())
+    # Per-item timeout to detect producer hangs quickly
+    # If no item arrives within this timeout, the producer is likely hung
+    timeout = crawler_config.queue_timeout
 
-    return crawl_result
+    while True:
+        try:
+            item = await asyncio.wait_for(queue.get(), timeout=timeout)
+            if item is None:
+                break
+            yield item
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Queue timeout after {timeout}s - "
+                "no items received, producer may have hung"
+            )
+            producer.cancel()
+            raise RuntimeError(
+                f"Crawl producer timed out after {timeout}s waiting for next item"
+            )
+
+    await producer
 
 
-def _fetch_letter_urls(
-    letter: str,
+async def _producer_task(
+    queue: asyncio.Queue,
+    letters: Sequence[Letter],
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
     crawler_config: CrawlerConfig,
-) -> LetterCrawlResult:
-    """Fetch vocabulary entry URLs for a single letter."""
-    urls: Set[str] = set()
-    page = 0
-    pages_successful = 0
+):
+    """Manage workers and push results to the queue.
 
-    logger.info(f"Fetching URLs for letter '{letter}'")
+    Uses TaskGroup for proper async task management. Individual letter failures
+    are logged but don't stop other letters from being crawled. The sentinel
+    value is guaranteed to be sent via the finally block.
+    """
+    semaphore = asyncio.Semaphore(crawler_config.max_workers)
+
+    async def _worker_bridge(letter: Letter):
+        """Bridge: Iterates the generator and pushes to queue.
+
+        Catches and logs exceptions to allow other letters to continue processing.
+        Critical errors in one letter won't stop the entire crawl.
+        """
+        try:
+            async with semaphore:
+                async for result in _crawl_letter_generator(
+                    letter, web_dictionary, http_client, crawler_config
+                ):
+                    await queue.put(result)
+        except Exception as e:
+            logger.exception(f"[{letter}] Worker failed with unexpected error: {e}")
+            # Don't re-raise - let other letters continue crawling
 
     try:
-        keep_crawling = True
-        while keep_crawling:
-            page += 1
-            page_result = _fetch_page_urls(letter, page, web_dictionary, http_client)
-
-            if page_result.success:
-                pages_successful += 1
-
-            page_urls = page_result.urls
-            new_urls = [url for url in page_urls if url not in urls]
-
-            if not new_urls:
-                logger.info(
-                    f"No new URLs on page {page} for letter '{letter}'. "
-                    "Stopping pagination."
-                )
-                keep_crawling = False
-
-            urls.update(new_urls)
-            logger.info(f"Page {page}: found {len(new_urls)} new URLs")
-
-            delay = crawler_config.request_delay
-            logger.debug(f"Sleeping {delay:.2f}s")
-
-            time.sleep(delay)
-
-        logger.info(f"Total {len(urls)} URLs found for letter '{letter}'")
-        return LetterCrawlResult(
-            letter=letter,
-            urls=urls,
-            pages_crawled=page,
-            pages_successful=pages_successful,
-            stopped_reason=CrawlStatus.COMPLETED,
-        )
-
-    except Exception as e:
-        logger.exception(f"Error crawling letter '{letter}': {e}")
-        return LetterCrawlResult.from_error(letter)
+        # TaskGroup ensures proper cleanup and cancellation semantics
+        async with asyncio.TaskGroup() as tg:
+            for letter in letters:
+                tg.create_task(_worker_bridge(letter))
+    except* Exception as eg:
+        # This should rarely happen since _worker_bridge catches exceptions
+        # Only critical/unexpected errors (like asyncio bugs) would reach here
+        logger.error(f"Critical error in task group: {eg}")
+        raise
+    finally:
+        # CRITICAL: Always send sentinel to prevent consumer from hanging
+        await queue.put(None)
 
 
-def _fetch_page_urls(
-    letter: str,
+async def _crawl_letter_generator(
+    letter: Letter,
+    web_dictionary: WebDictionary,
+    http_client: HttpClientSession,
+    crawler_config: CrawlerConfig,
+) -> AsyncGenerator[PageCrawlResult, None]:
+    """Crawl a single letter, yielding results page by page."""
+    page = 1
+    known_urls: Set[str] = set()
+    logger.info(f"[{letter}] Starting crawl")
+
+    while True:
+        result = await _fetch_single_page(letter, page, web_dictionary, http_client)
+
+        new_urls = [u for u in result.urls if u not in known_urls]
+        known_urls.update(new_urls)
+
+        if result.success:
+            result = PageCrawlResult(
+                letter=result.letter,
+                page_number=result.page_number,
+                urls=set(new_urls),
+                status_code=result.status_code,
+                error=result.error,
+            )
+
+        yield result
+
+        if not result.success:
+            logger.warning(f"[{letter}] Failed on page {page}. Stopping.")
+            break
+
+        if not new_urls:
+            logger.info(f"[{letter}] No new URLs on page {page}. Stopping.")
+            break
+
+        page += 1
+        await asyncio.sleep(crawler_config.request_delay)
+
+
+async def _fetch_single_page(
+    letter: Letter,
     page: int,
     web_dictionary: WebDictionary,
     http_client: HttpClientSession,
 ) -> PageCrawlResult:
-    """Fetch vocabulary URLs from a single index page."""
-    index_url = web_dictionary.build_index_url(letter, page)
+    """Fetch and parse a single page for a given letter."""
+    # Convert Letter to str at the boundary where we build URLs
+    url = web_dictionary.build_index_url(str(letter), page)
 
     try:
-        logger.debug(f"Fetching URLs for letter '{letter}', page {page}: {index_url}")
-        response = http_client.get(index_url)
+        response = await http_client.get(url)
 
-        response.raise_for_status()
-
-        page_urls = web_dictionary.parse_page_urls(response.text)
-        unique_page_urls = set(page_urls)
-
-        logger.debug(f"Found {len(unique_page_urls)} vocabulary URLs")
-        if unique_page_urls:
-            logger.debug(f"Sample URLs: {list(unique_page_urls)[:3]}")
+        page_urls = await asyncio.to_thread(
+            web_dictionary.parse_page_urls, response.text
+        )
 
         return PageCrawlResult(
-            urls=unique_page_urls,
+            letter=letter,
+            page_number=page,
+            urls=set(page_urls),
             status_code=response.status_code,
-            page_number=page,
-        )
-
-    except requests.RequestException as e:
-        status_code = getattr(
-            getattr(e, "response", None),
-            "status_code",
-            500,
-        )
-        logger.warning(
-            "Failed to fetch %s (status=%s): %s",
-            index_url,
-            status_code,
-            e,
-        )
-        return PageCrawlResult.from_error(
-            page_number=page,
-            error=str(e),
-            status_code=status_code,
         )
 
     except Exception as e:
-        logger.exception(f"Unexpected error fetching {index_url}: {e}")
+        logger.error(f"[{letter}] Error on page {page}: {e}")
+        status_code = 0
+        response = getattr(e, "response", None)
+        if response is not None and hasattr(response, "status_code"):
+            status_code = getattr(response, "status_code", 0)
         return PageCrawlResult.from_error(
+            letter=letter,
             page_number=page,
             error=str(e),
-            status_code=500,
+            status_code=status_code,
         )

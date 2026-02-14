@@ -20,13 +20,14 @@ class HttpClientConfig(BaseModel):
     )
 
     max_retries: int = Field(default=3, description="Maximum retries per request")
+    retry_start_timeout: float = Field(
+        default=1.0, description="Initial wait time in seconds before the first retry"
+    )
     retry_status_codes: Tuple[int, ...] = Field(
         default=(429, 500, 502, 503, 504),
         description="HTTP status codes that trigger retries",
     )
-    retry_backoff_factor: float = Field(
-        default=1.0, description="Exponential backoff factor"
-    )
-    max_retry_delay: float = Field(
-        default=30.0, description="Maximum delay between retries"
+    max_response_size: int = Field(
+        default=1 * 1024 * 1024,  # 1 MB
+        description="Maximum response size in bytes (prevents memory exhaustion)",
     )

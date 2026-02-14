@@ -1,0 +1,62 @@
+# Alguerisme Configuration File
+# This file contains application settings for the alguerisme crawler
+#
+# NOTE: Database connection settings (host, port, user, database) 
+#       are loaded from environment variables.
+#       Redis connection settings (host, port, db)
+#       are loaded from environment variables.
+
+# Database Configuration
+db_config:
+  echo: false
+  pool_size: 5
+  max_overflow: 10
+  pool_pre_ping: true
+  pool_recycle: 3600
+
+# Celery Configuration
+celery_config:
+  timezone: "Europe/Rome"
+  enable_utc: true
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content: ["json"]
+  result_expires: 3600
+
+# HTTP Client Configuration
+http_client:
+  timeout: 10.0
+  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  headers: {}
+  max_retries: 3
+  retry_status_codes:
+    - 429
+    - 500
+    - 502
+    - 503
+    - 504
+  retry_start_timeout: 1.0
+  max_response_size: 1048576  # 1 MB in bytes
+
+# Web Dictionary Configuration
+web_dictionary:
+  base_url: "https://www.algueres.net/"
+  letters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  index_url_template: "{base_url}/index.aspx?lletra={letter}&p={page}"
+  entry_link_selector: "a[href*='/vocabols/']"
+  entry_link_prefix: "/vocabols/"
+  entry_link_suffix: ".aspx"
+  content_selector: "#cntBody_pnlNews"
+
+# Crawler Configuration
+crawler:
+  max_workers: 5
+  request_delay: 1.0
+  queue_timeout: 60.0  # Timeout in seconds waiting for next item in queue
+
+# Notification Configuration
+notifications:
+  telegram:
+    chat_id: "-1003451098993"
+    enabled: true
+    parse_mode: "Markdown"

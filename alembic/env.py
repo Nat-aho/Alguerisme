@@ -32,10 +32,12 @@ from sqlmodel.sql.sqltypes import AutoString
 
 from alembic import context
 from alguerisme.configs.database import DatabaseConfig
-from alguerisme.services.database import get_database_url
-from alguerisme.services.models import (
-    EntryURLs,  # noqa: F401 - Import to register with SQLModel
+from alguerisme.core.database import get_database_url
+from alguerisme.core.database.models import (
+    EntryURLs,
 )
+
+_alembic_models = (EntryURLs,)  # Add SQLModel models here for autogeneration support
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -48,7 +50,9 @@ db_config = DatabaseConfig.from_env()
 database_url = get_database_url(db_config)
 
 # Override the sqlalchemy.url with our configured database URL
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option(
+    "sqlalchemy.url", database_url.render_as_string(hide_password=False)
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

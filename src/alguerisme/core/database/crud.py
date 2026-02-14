@@ -6,11 +6,13 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from alguerisme.services.models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
+from alguerisme.utils.alphabet import normalize_letter
+
+from .models import EntryURLs, EntryURLsCreate, EntryURLsUpdate
 
 
 def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryURLs:
-    """Create a new URL entry.
+    """Create a new URL entry and commit.
 
     Parameters
     ----------
@@ -25,7 +27,6 @@ def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryUR
         The created EntryURLs instance
 
     """
-    # Convert Create model to DB model
     entry = EntryURLs.model_validate(entry_create)
     session.add(entry)
     session.commit()
@@ -33,10 +34,33 @@ def create_entry_url(session: Session, entry_create: EntryURLsCreate) -> EntryUR
     return entry
 
 
+def add_entry_url_to_session(
+    session: Session, entry_create: EntryURLsCreate
+) -> EntryURLs:
+    """Add a new URL entry to session without committing.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    entry_create : EntryURLsCreate
+        Data for creating the entry
+
+    Returns
+    -------
+    EntryURLs
+        The created EntryURLs instance (ID will be None until commit)
+
+    """
+    entry = EntryURLs.model_validate(entry_create)
+    session.add(entry)
+    return entry
+
+
 def get_or_create_entry_url(
     session: Session, url: str, letter: Optional[str] = None
 ) -> tuple[EntryURLs, bool]:
-    """Get existing URL entry or create new one.
+    """Get existing URL entry or create and commit new one.
 
     Parameters
     ----------
@@ -45,7 +69,7 @@ def get_or_create_entry_url(
     url : str
         The URL to get or create
     letter : Optional[str]
-        Optional letter (used only if creating)
+        Optional letter (used only if creating). Will be normalized to uppercase.
 
     Returns
     -------
@@ -58,9 +82,40 @@ def get_or_create_entry_url(
     if existing:
         return existing, False
 
-    # Create using the Create model
-    entry_create = EntryURLsCreate(url=url, letter=letter)
+    normalized_letter = normalize_letter(letter) if letter else None
+    entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
     entry = create_entry_url(session, entry_create)
+    return entry, True
+
+
+def get_or_add_entry_url_to_session(
+    session: Session, url: str, letter: Optional[str] = None
+) -> tuple[EntryURLs, bool]:
+    """Get existing URL entry or add new one to session without committing.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    url : str
+        The URL to get or create
+    letter : Optional[str]
+        Optional letter (used only if creating). Will be normalized to uppercase.
+
+    Returns
+    -------
+    tuple[EntryURLs, bool]
+        A tuple containing the EntryURLs instance and a boolean indicating
+        whether it was created (True) or already existed (False)
+
+    """
+    existing = find_entry_url_by_url(session, url)
+    if existing:
+        return existing, False
+
+    normalized_letter = normalize_letter(letter) if letter else None
+    entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
+    entry = add_entry_url_to_session(session, entry_create)
     return entry, True
 
 
@@ -128,7 +183,7 @@ def get_entry_urls_by_letter(session: Session, letter: str) -> list[EntryURLs]:
     session : Session
         Database session
     letter : str
-        Letter to filter by
+        Letter to filter by (will be normalized to uppercase)
 
     Returns
     -------
@@ -136,7 +191,42 @@ def get_entry_urls_by_letter(session: Session, letter: str) -> list[EntryURLs]:
         List of EntryURLs for the letter
 
     """
-    statement = select(EntryURLs).where(EntryURLs.letter == letter)
+    # Normalize letter to ensure uppercase and valid format
+    normalized_letter = normalize_letter(letter)
+    statement = select(EntryURLs).where(EntryURLs.letter == normalized_letter)
+    return list(session.exec(statement).all())
+
+
+def get_entry_urls_paginated(
+    session: Session,
+    limit: int = 50,
+    offset: int = 0,
+    letter: Optional[str] = None,
+) -> list[EntryURLs]:
+    """Get URL entries with pagination.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : int
+        Maximum number of entries to return (default: 50)
+    offset : int
+        Number of entries to skip (default: 0)
+    letter : Optional[str]
+        Optional letter to filter by (will be normalized to uppercase)
+
+    Returns
+    -------
+    list[EntryURLs]
+        List of EntryURLs (paginated)
+
+    """
+    statement = select(EntryURLs)
+    if letter:
+        normalized_letter = normalize_letter(letter)
+        statement = statement.where(EntryURLs.letter == normalized_letter)
+    statement = statement.offset(offset).limit(limit)
     return list(session.exec(statement).all())
 
 
@@ -244,7 +334,7 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
     session : Session
         Database session
     letter : str
-        Letter to count
+        Letter to count (will be normalized to uppercase)
 
     Returns
     -------
@@ -252,7 +342,57 @@ def count_entry_urls_by_letter(session: Session, letter: str) -> int:
         Number of URLs for the letter
 
     """
+    normalized_letter = normalize_letter(letter)
     statement = (
-        select(func.count()).select_from(EntryURLs).where(EntryURLs.letter == letter)
+        select(func.count())
+        .select_from(EntryURLs)
+        .where(EntryURLs.letter == normalized_letter)
     )
     return session.exec(statement).one()
+
+
+def delete_all_entry_urls(session: Session) -> int:
+    """Delete all URL entries using efficient set-based delete.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    int
+        Number of entries deleted
+
+    """
+    from sqlalchemy import delete as sql_delete
+
+    statement = sql_delete(EntryURLs)
+    result = session.exec(statement)
+    session.commit()
+    return result.rowcount
+
+
+def delete_entry_urls_by_letter(session: Session, letter: str) -> int:
+    """Delete all URL entries for a specific letter using efficient set-based delete.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to filter by (will be normalized to uppercase)
+
+    Returns
+    -------
+    int
+        Number of entries deleted
+
+    """
+    from sqlalchemy import delete as sql_delete
+
+    normalized_letter = normalize_letter(letter)
+    statement = sql_delete(EntryURLs).where(EntryURLs.letter == normalized_letter)  # type: ignore[arg-type]
+    result = session.exec(statement)
+    session.commit()
+    return result.rowcount

@@ -1,4 +1,4 @@
-"""Unified application configuration from YAML file."""
+"""Unified application configuration model."""
 
 from pathlib import Path
 from typing import Optional
@@ -6,31 +6,40 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel, Field
 
+from alguerisme.configs.celery import CeleryConfig
 from alguerisme.configs.crawler import CrawlerConfig
+from alguerisme.configs.database import DatabaseConfig
 from alguerisme.configs.http_client import HttpClientConfig
+from alguerisme.configs.notifications import NotificationConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
 
 
 class AppConfig(BaseModel):
-    """Unified application configuration.
+    """Unified application configuration model."""
 
-    This combines crawler, HTTP client, and web dictionary configurations
-    that can be loaded from a YAML file.
-
-    NOTE: Database configuration is handled separately via environment variables.
-    """
-
+    db_config: DatabaseConfig = Field(
+        default_factory=DatabaseConfig,
+        description="Database configuration",
+    )
+    celery_config: CeleryConfig = Field(
+        default_factory=CeleryConfig,
+        description="Celery configuration",
+    )
     http_client: HttpClientConfig = Field(
-        default_factory=lambda: HttpClientConfig(),
+        default_factory=HttpClientConfig,
         description="HTTP client configuration",
     )
     web_dictionary: WebDictionaryConfig = Field(
-        default_factory=lambda: WebDictionaryConfig(),
+        default_factory=WebDictionaryConfig,
         description="Web dictionary configuration",
     )
     crawler: CrawlerConfig = Field(
-        default_factory=lambda: CrawlerConfig(),
+        default_factory=CrawlerConfig,
         description="Crawler configuration",
+    )
+    notifications: NotificationConfig = Field(
+        default_factory=NotificationConfig,
+        description="Notification services configuration",
     )
 
     @classmethod

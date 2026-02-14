@@ -211,3 +211,6 @@ pyrightconfig.json
 # Environment variables file
 .env*
 !.env.prod.example
+
+# Docker secrets file
+secrets/
