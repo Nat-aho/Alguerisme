@@ -94,7 +94,7 @@ class HttpClientSession:
                 attempt += 1
                 if attempt > self.max_retries:
                     logger.warning(f"Max retries reached for {url}: {e}")
-                    raise e
+                    raise
 
                 logger.debug(f"Request failed ({e}), retrying in {backoff}s...")
                 await asyncio.sleep(backoff)
