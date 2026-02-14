@@ -2,7 +2,7 @@
 
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr, SecretStr
 
 from alguerisme.utils.secrets import get_secret
 
@@ -21,22 +21,36 @@ class CeleryConfig(BaseModel):
     accept_content: list[str] = Field(default_factory=lambda: ["json"])
     result_expires: int = Field(default=3600)
 
+    _password: SecretStr | None = PrivateAttr(default=None)
+    _broker_url: str | None = PrivateAttr(default=None)
+    _backend_url: str | None = PrivateAttr(default=None)
+
     @property
     def password(self) -> str:
         """Retrieve Redis password from secrets."""
-        return get_secret("redis_password")
+        if self._password is None:
+            self._password = SecretStr(get_secret("redis_password"))
+        return self._password.get_secret_value()
 
     @property
     def broker_url(self) -> str:
         """Construct the Redis Broker URL."""
-        auth = f":{self.password}@" if self.password else ""
-        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        if self._broker_url is None:
+            auth = f":{self.password}@" if self.password else ""
+            self._broker_url = (
+                f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+            )
+        return self._broker_url
 
     @property
-    def result_backend(self) -> str:
+    def backend_url(self) -> str:
         """Construct the Redis Backend URL."""
-        auth = f":{self.password}@" if self.password else ""
-        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        if self._backend_url is None:
+            auth = f":{self.password}@" if self.password else ""
+            self._backend_url = (
+                f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+            )
+        return self._backend_url
 
     @classmethod
     def from_env(cls) -> "CeleryConfig":

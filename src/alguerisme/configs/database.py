@@ -1,6 +1,7 @@
 """Database configuration and connection management."""
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, SecretStr
+from sqlalchemy.engine import URL
 
 from alguerisme.utils.env import get_env_or_die
 from alguerisme.utils.secrets import get_secret
@@ -19,6 +20,8 @@ class DatabaseConfig(BaseModel):
         DATABASE_ECHO: Echo SQL queries for debugging (default: false)
 
     """
+
+    model_config = {"arbitrary_types_allowed": True}
 
     host: str = Field(
         default="localhost",
@@ -41,24 +44,27 @@ class DatabaseConfig(BaseModel):
         description="Echo SQL queries (for debugging)",
     )
 
-    _password: str | None = PrivateAttr(default=None)
+    _password: SecretStr | None = PrivateAttr(default=None)
+    _url: URL | None = PrivateAttr(default=None)
 
     @property
     def password(self) -> str:
         """Read and cache the database password."""
         if self._password is None:
-            self._password = get_secret("db_password")
-        return self._password
-
-    _url: str | None = PrivateAttr(default=None)
+            self._password = SecretStr(get_secret("db_password"))
+        return self._password.get_secret_value()
 
     @property
-    def url(self) -> str:
+    def url(self) -> URL:
         """Build and cache the database URL."""
         if self._url is None:
-            self._url = (
-                f"postgresql://{self.user}:{self.password}"
-                f"@{self.host}:{self.port}/{self.database}"
+            self._url = URL.create(
+                drivername="postgresql",
+                username=self.user,
+                password=self.password,
+                host=self.host,
+                port=self.port,
+                database=self.database,
             )
         return self._url
 

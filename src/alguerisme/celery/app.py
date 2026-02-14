@@ -24,7 +24,7 @@ def build_celery_app() -> Celery:
     app = Celery(
         "alguerisme",
         broker=config.celery_config.broker_url,
-        backend=config.celery_config.result_backend,
+        backend=config.celery_config.backend_url,
     )
 
     app.conf.update(
