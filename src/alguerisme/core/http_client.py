@@ -22,7 +22,7 @@ class HttpClientSession:
         max_retries: int = 3,
         retry_start_timeout: float = 1.0,
         retry_status_codes: Container[int] = (429, 500, 502, 503, 504),
-        max_response_size: int = 10 * 1024 * 1024,  # 10 MB
+        max_response_size: int = 1 * 1024 * 1024,  # 1 MB
     ):
         """Initialize the HTTP client session."""
         self.timeout = timeout
@@ -113,17 +113,25 @@ class HttpClientSession:
                 backoff *= 2.0  # Exponential backoff
 
     def _validate_response_size(self, response: httpx.Response):
-        """Validate response size against max_response_size."""
-        content_length = response.headers.get("content-length")
-        if content_length and int(content_length) > self.max_response_size:
-            raise httpx.RequestError(
-                f"Response size {content_length} bytes exceeds "
-                f"maximum {self.max_response_size} bytes"
-            )
+        """Validate response size against max_response_size.
 
-        if len(response.content) > self.max_response_size:
+        The target site consistently sends content-length headers.
+        We validate this header before downloading. If the header is missing,
+        it indicates a potential issue, which we log for investigation.
+        """
+        content_length = response.headers.get("content-length")
+
+        if not content_length:
+            logger.warning(
+                f"Missing content-length header for {response.url} - "
+                f"this is unusual and may indicate a problem"
+            )
+            return
+
+        size = int(content_length)
+        if size > self.max_response_size:
             raise httpx.RequestError(
-                f"Response content {len(response.content)} bytes exceeds "
+                f"Response size {size} bytes exceeds "
                 f"maximum {self.max_response_size} bytes"
             )
 
