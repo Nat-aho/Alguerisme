@@ -45,5 +45,5 @@ class NotificationConfig(BaseModel):
         try:
             token = self.telegram.bot_token
             return bool(token)
-        except (FileNotFoundError, ValueError):
+        except (KeyError, RuntimeError):
             return False
