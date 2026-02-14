@@ -1,6 +1,5 @@
 """Crawler service for URL discovery and persistence."""
 
-import asyncio
 import logging
 
 from sqlmodel import Session
@@ -46,8 +45,8 @@ class CrawlerService:
             if not page_result.success or not page_result.urls:
                 continue
 
-            saved, skipped, failed = await asyncio.to_thread(
-                self._save_batch_sync, page_result.urls, page_result.letter
+            saved, skipped, failed = self._save_batch_sync(
+                page_result.urls, page_result.letter
             )
 
             stats.urls_saved += saved
