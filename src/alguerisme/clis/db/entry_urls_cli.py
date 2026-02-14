@@ -1,16 +1,19 @@
 """CLI for managing the entry_urls table."""
 
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from alguerisme.clis.utils import setup_logging
+from alguerisme.clis.utils import get_letters_or_default, setup_logging
 from alguerisme.configs.loader import load_app_config
 from alguerisme.core.database import crud
 from alguerisme.core.database.database import get_session
-from alguerisme.utils.alphabet import Alphabet, Letter
+from alguerisme.utils.alphabet import Alphabet
+
+if TYPE_CHECKING:
+    from alguerisme.core.database.models import EntryURLs
 
 app = typer.Typer(
     name="entry-urls",
@@ -28,13 +31,13 @@ def show(
         50,
         "--limit",
         "-n",
-        help="Maximum number of rows to display",
+        help="Maximum number of rows to display per letter",
     ),
-    letter: Optional[str] = typer.Option(
+    letters: Optional[str] = typer.Option(
         None,
-        "--letter",
+        "--letters",
         "-l",
-        help="Filter by letter",
+        help="Letters to filter by (e.g., 'ABC'). Uses A-Z if omitted.",
     ),
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = typer.Option(
         "WARNING",
@@ -47,61 +50,55 @@ def show(
     setup_logging(log_level)
 
     try:
-        # Validate letter if provided
-        validated_letter = None
-        if letter:
-            try:
-                validated_letter = Letter(letter)
-            except ValueError as e:
-                console.print(f"[red]Invalid letter:[/red] {e}")
-                raise typer.Exit(code=1)
-
         config = load_app_config()
-        session = get_session(config.db_config)
+        validated_letters = get_letters_or_default(letters, console)
 
-        # Get total count efficiently
-        if validated_letter:
-            total_count = crud.count_entry_urls_by_letter(
-                session, str(validated_letter)
-            )
-        else:
-            total_count = crud.count_entry_urls(session)
+        with get_session(config.db_config) as session:
+            all_entries: list["EntryURLs"] = []
+            total_count = 0
+            for letter in validated_letters:
+                count = crud.count_entry_urls_by_letter(session, letter)
+                total_count += count
+                letter_entries = crud.get_entry_urls_paginated(
+                    session,
+                    limit=limit,
+                    offset=0,
+                    letter=letter,
+                )
+                all_entries.extend(letter_entries)
 
-        # Get entries with pagination (efficient - only fetch what we need)
-        entries = crud.get_entry_urls_paginated(
-            session,
-            limit=limit,
-            offset=0,
-            letter=str(validated_letter) if validated_letter else None,
-        )
-
-        # Create table
-        title = f"Entry URLs (showing {len(entries)} of {total_count})"
-        rich_table = Table(title=title)
-        rich_table.add_column("ID", style="cyan", no_wrap=True)
-        rich_table.add_column("URL", style="blue")
-        rich_table.add_column("Letter", style="green")
-        rich_table.add_column("Discovered At", style="yellow")
-
-        for entry in entries:
-            rich_table.add_row(
-                str(entry.id)[:8] + "...",
-                entry.url[:60] + "..." if len(entry.url) > 60 else entry.url,
-                entry.letter or "N/A",
-                entry.discovered_at.strftime("%Y-%m-%d %H:%M:%S"),
+            # Create table
+            title = (
+                f"Entry URLs for {', '.join(validated_letters)} "
+                f"(showing {len(all_entries)} of {total_count})"
             )
 
-        console.print(rich_table)
+            rich_table = Table(title=title)
+            rich_table.add_column("ID", style="cyan", no_wrap=True)
+            rich_table.add_column("URL", style="blue")
+            rich_table.add_column("Letter", style="green")
+            rich_table.add_column("Discovered At", style="yellow")
 
-        if total_count > limit:
-            note = (
-                f"\n[yellow]Note:[/yellow] Showing {limit} of "
-                f"{total_count} entries. Use --limit to show more."
-            )
-            console.print(note)
+            for entry in all_entries:
+                rich_table.add_row(
+                    str(entry.id)[:8] + "...",
+                    entry.url[:60] + "...",
+                    entry.letter or "N/A",
+                    entry.discovered_at.strftime("%Y-%m-%d %H:%M:%S"),
+                )
 
-        session.close()
+            console.print(rich_table)
 
+            if total_count > len(all_entries):
+                note = (
+                    f"\n[yellow]Note:[/yellow] Showing {len(all_entries)} of "
+                    f"{total_count} entries. Use --limit to show more per letter."
+                )
+                console.print(note)
+
+    except ValueError as e:
+        console.print(f"[red]Invalid letters:[/red] {e}")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(1)
@@ -109,11 +106,11 @@ def show(
 
 @app.command()
 def count(
-    letter: Optional[str] = typer.Option(
+    letters: Optional[str] = typer.Option(
         None,
-        "--letter",
+        "--letters",
         "-l",
-        help="Filter by letter",
+        help="Letters to filter by (e.g., 'ABC'). Uses A-Z if omitted.",
     ),
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = typer.Option(
         "WARNING",
@@ -126,33 +123,25 @@ def count(
     setup_logging(log_level)
 
     try:
-        # Validate letter if provided
-        validated_letter = None
-        if letter:
-            try:
-                validated_letter = Letter(letter)
-            except ValueError as e:
-                console.print(f"[red]Invalid letter:[/red] {e}")
-                raise typer.Exit(code=1)
-
         config = load_app_config()
-        session = get_session(config.db_config)
+        validated_letters = get_letters_or_default(letters, console)
 
-        if validated_letter:
-            count_val = crud.count_entry_urls_by_letter(
-                session, str(validated_letter)
-            )
-            msg = (
-                f"[green]✓[/green] Entry URLs for letter "
-                f"'{validated_letter}': {count_val}"
-            )
-            console.print(msg)
-        else:
-            count_val = crud.count_entry_urls(session)
-            console.print(f"[green]✓[/green] Total Entry URLs: {count_val}")
+        with get_session(config.db_config) as session:
+            letter_counts = []
+            total_count = 0
 
-        session.close()
+            for letter in validated_letters:
+                count = crud.count_entry_urls_by_letter(session, letter)
+                letter_counts.append((letter, count))
+                total_count += count
 
+            for letter, count in letter_counts:
+                console.print(f"  Letter {letter}: {count}")
+            console.print(f"[green]✓[/green] Total: {total_count}")
+
+    except ValueError as e:
+        console.print(f"[red]Invalid letters:[/red] {e}")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(1)
@@ -172,34 +161,32 @@ def stats(
 
     try:
         config = load_app_config()
-        session = get_session(config.db_config)
 
-        # Get overall stats
-        total = crud.count_entry_urls(session)
+        with get_session(config.db_config) as session:
+            total = crud.count_entry_urls(session)
 
-        # Create stats table
-        stats_table = Table(title="Entry URLs Statistics")
-        stats_table.add_column("Metric", style="cyan")
-        stats_table.add_column("Value", style="green", justify="right")
+            # Create stats table
+            stats_table = Table(title="Entry URLs Statistics")
+            stats_table.add_column("Metric", style="cyan")
+            stats_table.add_column("Value", style="green", justify="right")
 
-        stats_table.add_row("Total Entry URLs", str(total))
+            stats_table.add_row("Total Entry URLs", str(total))
 
-        # Get counts by letter
-        alphabet = Alphabet.standard()
-        letter_counts = {}
-        for letter_obj in alphabet:
-            count = crud.count_entry_urls_by_letter(session, str(letter_obj))
-            if count > 0:
-                letter_counts[str(letter_obj)] = count
+            # Get counts by letter
+            alphabet = Alphabet.standard()
+            letter_counts = {}
+            for letter_obj in alphabet:
+                count = crud.count_entry_urls_by_letter(session, str(letter_obj))
+                if count > 0:
+                    letter_counts[str(letter_obj)] = count
 
-        if letter_counts:
-            stats_table.add_section()
-            stats_table.add_row("[bold]By Letter[/bold]", "")
-            for letter, count in sorted(letter_counts.items()):
-                stats_table.add_row(f"  Letter {letter}", str(count))
+            if letter_counts:
+                stats_table.add_section()
+                stats_table.add_row("[bold]By Letter[/bold]", "")
+                for letter, count in sorted(letter_counts.items()):
+                    stats_table.add_row(f"  Letter {letter}", str(count))
 
-        console.print(stats_table)
-        session.close()
+            console.print(stats_table)
 
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
@@ -208,11 +195,11 @@ def stats(
 
 @app.command()
 def clean(
-    letter: Optional[str] = typer.Option(
+    letters: Optional[str] = typer.Option(
         None,
-        "--letter",
+        "--letters",
         "-l",
-        help="Only delete entries for this letter",
+        help="Letters to filter by (e.g., 'ABC'). Uses A-Z if omitted.",
     ),
     force: bool = typer.Option(
         False,
@@ -227,56 +214,44 @@ def clean(
         help="Logging level",
     ),
 ) -> None:
-    """Delete all rows from the entry_urls table."""
+    """Delete all rows from the entry_urls table.
+
+    By default, deletes ALL entry URLs (A-Z) unless --letters is specified.
+    Always requires confirmation unless --force is used.
+    """
     setup_logging(log_level)
 
     try:
-        # Validate letter if provided
-        validated_letter = None
-        if letter:
-            try:
-                validated_letter = Letter(letter)
-            except ValueError as e:
-                console.print(f"[red]Invalid letter:[/red] {e}")
-                raise typer.Exit(code=1)
-
         config = load_app_config()
-        session = get_session(config.db_config)
+        validated_letters = get_letters_or_default(letters, console)
 
-        # Get count for confirmation message
-        if validated_letter:
-            count = crud.count_entry_urls_by_letter(session, str(validated_letter))
-            msg = f"all {count} entry URLs for letter '{validated_letter}'"
-        else:
-            count = crud.count_entry_urls(session)
-            msg = f"all {count} entry URLs"
+        with get_session(config.db_config) as session:
+            # Confirm deletion
+            if not force:
+                msg = (
+                    f"Are you sure you want to delete entry URLs for letters "
+                    f"{', '.join(validated_letters)}"
+                )
+                confirm = typer.confirm(msg, default=False)
+                if not confirm:
+                    console.print("[yellow]Cancelled[/yellow]")
+                    raise typer.Exit(0)
 
-        # Confirm deletion
-        if not force:
-            confirm = typer.confirm(
-                f"Are you sure you want to delete {msg}?",
-                default=False,
-            )
-            if not confirm:
-                console.print("[yellow]Cancelled[/yellow]")
-                raise typer.Exit(0)
+            # Delete entries
+            total_deleted = 0
+            for letter in validated_letters:
+                deleted = crud.delete_entry_urls_by_letter(session, letter)
+                total_deleted += deleted
 
-        # Delete entries efficiently
-        if validated_letter:
-            deleted = crud.delete_entry_urls_by_letter(
-                session, str(validated_letter)
-            )
             success_msg = (
-                f"[green]✓[/green] Deleted {deleted} entry URLs "
-                f"for letter '{validated_letter}'"
+                f"[green]✓[/green] Deleted {total_deleted} entry URLs "
+                f"for letters {', '.join(validated_letters)}"
             )
             console.print(success_msg)
-        else:
-            deleted = crud.delete_all_entry_urls(session)
-            console.print(f"[green]✓[/green] Deleted {deleted} entry URLs")
 
-        session.close()
-
+    except ValueError as e:
+        console.print(f"[red]Invalid letters:[/red] {e}")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Failed:[/red] {e}")
         raise typer.Exit(1)
