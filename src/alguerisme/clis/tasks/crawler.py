@@ -1,21 +1,15 @@
-"""CLI to trigger Celery tasks."""
+"""CLI commands for crawler tasks."""
 
 import typer
 from rich.console import Console
 
+from alguerisme.clis.tasks import app
 from alguerisme.utils.alphabet import Alphabet, normalize_letters
-
-app = typer.Typer(
-    name="alguerisme-tasks",
-    help="Trigger Celery tasks for Alguerisme",
-    no_args_is_help=True,
-    add_completion=False,
-)
 
 console = Console()
 
 
-@app.command()
+@app.command(name="crawl")
 def trigger_crawler(
     letters: str = typer.Option(
         None,
@@ -33,7 +27,7 @@ def trigger_crawler(
         String of letters to crawl (e.g. 'ABC'). If not provided, crawls
         all letters A-Z.
     """
-    from alguerisme.celery.app import trigger_daily_crawl
+    from alguerisme.celery.tasks.crawler_tasks import crawl_letters
 
     try:
         if letters is not None:
@@ -54,7 +48,7 @@ def trigger_crawler(
                 f"{', '.join(letters_to_crawl)}"
             )
 
-        result = trigger_daily_crawl.delay(letters_to_crawl)
+        result = crawl_letters.delay(letters_to_crawl)
         console.print(f"[green]✓[/green] Triggered crawl (task_id: {result.id})")
         console.print(
             "[yellow]→[/yellow] Notification will be sent when all tasks complete"
