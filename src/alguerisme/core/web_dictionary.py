@@ -42,6 +42,11 @@ class WebDictionary:
             page=page,
         )
 
+    def is_entry_url(self, url: str) -> bool:
+        """Check if a URL matches the entry URL pattern."""
+        url_prefix = urljoin(self.base_url, self.entry_link_prefix)
+        return url.startswith(url_prefix) and url.endswith(self.entry_link_suffix)
+
     def parse_page_urls(self, html: str) -> List[str]:
         """Parse vocabulary entry URLs from an index page's HTML."""
         soup = BeautifulSoup(html, "lxml")
@@ -63,17 +68,25 @@ class WebDictionary:
             urljoin(self.base_url, str(a["href"])) for a in all_links if a.get("href")
         ]
 
-        # Build full URL prefix for filtering
-        url_prefix = urljoin(self.base_url, self.entry_link_prefix)
-
-        # Filter by prefix and suffix
-        filtered = [
-            link
-            for link in page_links
-            if link.startswith(url_prefix) and link.endswith(self.entry_link_suffix)
-        ]
+        # Filter using is_entry_url() method
+        filtered = [link for link in page_links if self.is_entry_url(link)]
 
         return filtered
+
+    def extract_content_html(self, html: str) -> str | None:
+        """Extract content HTML from an entry page."""
+        soup = BeautifulSoup(html, "lxml")
+
+        content_div = soup.select_one(self.content_selector)
+
+        if not content_div:
+            logger.warning(
+                "Content selector '%s' did not match any elements.",
+                self.content_selector,
+            )
+            return None
+
+        return str(content_div)
 
     def get_letters(self) -> List[str]:
         """Get list of letters to crawl."""

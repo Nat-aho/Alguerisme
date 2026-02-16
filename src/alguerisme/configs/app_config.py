@@ -7,6 +7,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from alguerisme.configs.celery import CeleryConfig
+from alguerisme.configs.collector import CollectorConfig
 from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.database import DatabaseConfig
 from alguerisme.configs.http_client import HttpClientConfig
@@ -36,6 +37,10 @@ class AppConfig(BaseModel):
     crawler: CrawlerConfig = Field(
         default_factory=CrawlerConfig,
         description="Crawler configuration",
+    )
+    collector: CollectorConfig = Field(
+        default_factory=CollectorConfig,
+        description="Collector configuration",
     )
     notifications: NotificationConfig = Field(
         default_factory=NotificationConfig,
