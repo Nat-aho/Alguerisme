@@ -92,6 +92,8 @@ def get_or_create_entry_url(
         return existing, False
 
     normalized_letter = normalize_letter(letter) if letter else None
+    if not normalized_letter:
+        raise ValueError("Letter is required when creating a new EntryURLs")
     entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
     entry = create_entry_url(session, entry_create)
     return entry, True
@@ -123,6 +125,8 @@ def get_or_add_entry_url_to_session(
         return existing, False
 
     normalized_letter = normalize_letter(letter) if letter else None
+    if not normalized_letter:
+        raise ValueError("Letter is required when creating a new EntryURLs")
     entry_create = EntryURLsCreate(url=url, letter=normalized_letter)
     entry = add_entry_url_to_session(session, entry_create)
     return entry, True
@@ -587,6 +591,33 @@ def delete_vocabols_raw_html_by_id(session: Session, html_id: UUID) -> bool:
     return True
 
 
+def delete_vocabols_raw_html_by_letter(session: Session, letter: str) -> int:
+    """Delete all VocabolsRawHTML entries for a specific letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to filter by (single character)
+
+    Returns
+    -------
+    int
+        Number of entries deleted
+
+    """
+    statement = select(VocabolsRawHTML).where(VocabolsRawHTML.letter == letter.upper())
+    entries = list(session.exec(statement).all())
+
+    count = len(entries)
+    for entry in entries:
+        session.delete(entry)
+
+    session.commit()
+    return count
+
+
 def count_all_vocabols_raw_html(session: Session) -> int:
     """Count total number of VocabolsRawHTML entries.
 
@@ -603,6 +634,64 @@ def count_all_vocabols_raw_html(session: Session) -> int:
     """
     statement = select(func.count()).select_from(VocabolsRawHTML)
     return session.exec(statement).one()
+
+
+def count_vocabols_raw_html_by_letter(session: Session, letter: str) -> int:
+    """Count VocabolsRawHTML entries for a specific letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to filter by (single character)
+
+    Returns
+    -------
+    int
+        Count of entries for the letter
+
+    """
+    statement = (
+        select(func.count())
+        .select_from(VocabolsRawHTML)
+        .where(VocabolsRawHTML.letter == letter.upper())
+    )
+    return session.exec(statement).one()
+
+
+def get_vocabols_raw_html_paginated(
+    session: Session,
+    limit: int = 50,
+    offset: int = 0,
+    letter: Optional[str] = None,
+) -> list[VocabolsRawHTML]:
+    """Get paginated list of VocabolsRawHTML entries, optionally filtered by letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : int
+        Maximum number of entries to return
+    offset : int
+        Number of entries to skip
+    letter : Optional[str]
+        Letter to filter by (single character)
+
+    Returns
+    -------
+    list[VocabolsRawHTML]
+        List of VocabolsRawHTML entries
+
+    """
+    statement = select(VocabolsRawHTML).order_by(VocabolsRawHTML.collected_at.desc())  # type: ignore[attr-defined]
+
+    if letter:
+        statement = statement.where(VocabolsRawHTML.letter == letter.upper())
+
+    statement = statement.limit(limit).offset(offset)
+    return list(session.exec(statement).all())
 
 
 def list_pending_vocabols_urls(
@@ -746,7 +835,6 @@ def find_rejected_change_by_entry_url_id(
     return session.exec(statement).first()
 
 
-
 def list_changes_by_status(
     session: Session, status: str, limit: Optional[int] = None
 ) -> list[VocabolsHtmlChanges]:
@@ -767,9 +855,7 @@ def list_changes_by_status(
         List of changes with the specified status
 
     """
-    statement = select(VocabolsHtmlChanges).where(
-        VocabolsHtmlChanges.status == status
-    )
+    statement = select(VocabolsHtmlChanges).where(VocabolsHtmlChanges.status == status)
 
     if limit:
         statement = statement.limit(limit)
@@ -819,6 +905,7 @@ def approve_change(
 
     """
     from datetime import datetime, timezone
+
     from alguerisme.core.collector.enums import ChangeStatus
 
     change = session.get(VocabolsHtmlChanges, change_id)
@@ -828,7 +915,6 @@ def approve_change(
     change.status = ChangeStatus.APPROVED
     change.reviewed_at = datetime.now(timezone.utc)
     change.reviewed_by = reviewed_by
-
 
     session.commit()
     session.refresh(change)
@@ -856,6 +942,7 @@ def reject_change(
 
     """
     from datetime import datetime, timezone
+
     from alguerisme.core.collector.enums import ChangeStatus
 
     change = session.get(VocabolsHtmlChanges, change_id)
@@ -869,7 +956,6 @@ def reject_change(
     session.commit()
     session.refresh(change)
     return change
-
 
 
 def delete_change_by_id(session: Session, change_id: UUID) -> bool:

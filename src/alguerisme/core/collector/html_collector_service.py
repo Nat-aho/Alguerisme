@@ -69,7 +69,17 @@ class HTMLCollectorService:
         async def _collect_with_limit(entry_url: EntryURLs) -> None:
             """Collect a single URL with rate limiting."""
             async with semaphore:
-                result, status = await self._collect_url(entry_url.url, entry_url.id)
+                # Skip if no letter is set
+                if not entry_url.letter:
+                    logger.warning(
+                        f"Skipping {entry_url.url}: no letter associated"
+                    )
+                    stats.urls_failed += 1
+                    return
+
+                result, status = await self._collect_url(
+                    entry_url.url, entry_url.id, entry_url.letter
+                )
 
                 # Update stats based on status
                 if status == CollectionStatus.COLLECTED:
@@ -93,7 +103,7 @@ class HTMLCollectorService:
         return stats
 
     async def _collect_url(
-        self, url: str, entry_url_id: UUID
+        self, url: str, entry_url_id: UUID, letter: str
     ) -> tuple[CollectionResult, CollectionStatus]:
         """Collect a single URL and save to database.
 
@@ -103,6 +113,8 @@ class HTMLCollectorService:
             URL to collect
         entry_url_id : UUID
             ID of the entry_urls record
+        letter : str
+            Letter associated with the URL
 
         Returns
         -------
@@ -117,20 +129,24 @@ class HTMLCollectorService:
 
         # Save to database
         if result.success:
-            status = self._save_new_collection(result)
+            status = self._save_new_collection(result, letter)
         else:
             self._log_failure(result)
             status = CollectionStatus.FAILED
 
         return result, status
 
-    def _save_new_collection(self, result: CollectionResult) -> CollectionStatus:
+    def _save_new_collection(
+        self, result: CollectionResult, letter: str
+    ) -> CollectionStatus:
         """Save a new collection to database.
 
         Parameters
         ----------
         result : CollectionResult
             Successful collection result
+        letter : str
+            Letter associated with the URL
 
         Returns
         -------
@@ -154,6 +170,7 @@ class HTMLCollectorService:
             html_create = VocabolsRawHTMLCreate(
                 entry_url_id=result.entry_url_id,
                 url=result.url,
+                letter=letter,
                 raw_html=result.raw_html,
                 content_hash=content_hash,
                 http_status_code=result.http_status_code,

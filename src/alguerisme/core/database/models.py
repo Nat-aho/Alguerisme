@@ -11,7 +11,7 @@ class EntryURLsBase(SQLModel):
     """Base model for EntryURLs with shared fields."""
 
     url: str = Field(unique=True, nullable=False, index=True)
-    letter: Optional[str] = Field(default=None, max_length=1, index=True)
+    letter: str = Field(max_length=1, index=True, nullable=False)
 
 
 class EntryURLsCreate(EntryURLsBase):
@@ -55,6 +55,7 @@ class VocabolsRawHTMLBase(SQLModel):
         foreign_key="entry_urls.id", unique=True, index=True
     )  # One current version per URL
     url: str = Field(nullable=False, index=True)
+    letter: str = Field(max_length=1, index=True, nullable=False)
     raw_html: Optional[str] = Field(default=None)
     content_hash: Optional[str] = Field(
         default=None, max_length=64, index=True
@@ -79,6 +80,7 @@ class VocabolsRawHTMLUpdate(SQLModel):
     All fields optional to allow partial updates.
     """
 
+    letter: Optional[str] = Field(default=None, max_length=1)
     raw_html: Optional[str] = Field(default=None)
     content_hash: Optional[str] = Field(default=None, max_length=64)
     http_status_code: Optional[int] = Field(default=None)
