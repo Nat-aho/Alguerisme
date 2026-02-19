@@ -4,6 +4,7 @@ import typer
 
 from .alembic_cli import app as alembic_app
 from .entry_urls_cli import app as entry_urls_app
+from .vocabols_html_cli import app as vocabols_html_app
 
 app = typer.Typer(
     name="alguerisme-db",
@@ -14,3 +15,8 @@ app = typer.Typer(
 
 app.add_typer(alembic_app, name="alembic", help="Alembic migration commands")
 app.add_typer(entry_urls_app, name="entry-urls", help="Manage entry_urls table")
+app.add_typer(
+    vocabols_html_app,
+    name="vocabols-html",
+    help="Inspect vocabols_raw_html table"
+)
