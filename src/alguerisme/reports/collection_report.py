@@ -4,7 +4,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from alguerisme.core.collector.models import (
     CollectionMetrics,
-    LetterCollectionResult,
+    LetterCollectionResults,
 )
 
 
@@ -25,7 +25,7 @@ class CollectionReport:
 
     def __init__(
         self,
-        letter_results: list[LetterCollectionResult],
+        results: LetterCollectionResults,
         collection_type: str = "new",
     ):
         """
@@ -33,15 +33,14 @@ class CollectionReport:
 
         Parameters
         ----------
-        letter_results : list[LetterCollectionResult]
-            Results from each letter collection task
+        results : LetterCollectionResults
+            LetterCollectionResults instance containing results from each
+            letter collection task
         collection_type : str
             Type of collection: "new" or "update_check"
         """
-        self.letter_results = letter_results
-        self.metrics = CollectionMetrics.from_results(
-            letter_results, collection_type
-        )
+        self.results = results
+        self.metrics = CollectionMetrics.from_results(results, collection_type)
 
     def format_telegram(self) -> str:
         """
@@ -53,8 +52,11 @@ class CollectionReport:
             Markdown-formatted message for Telegram
         """
         template = self._jinja_env.get_template("telegram_collection_report.jinja2")
+
         return template.render(
-            metrics=self.metrics, letter_results=self.letter_results
+            metrics=self.metrics,
+            successful_results=self.results.successful_results,
+            failed_results=self.results.failed_results,
         ).strip()
 
     def format_console(self) -> str:
@@ -67,4 +69,8 @@ class CollectionReport:
             Plain text summary for logging
         """
         template = self._jinja_env.get_template("console_collection_report.jinja2")
-        return template.render(metrics=self.metrics).strip()
+
+        return template.render(
+            metrics=self.metrics,
+            failed_letters=self.results.failed_letters,
+        ).strip()

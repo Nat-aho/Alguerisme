@@ -8,7 +8,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from alguerisme.celery.app import app
 from alguerisme.configs.loader import load_app_config
-from alguerisme.core.crawler.models import LetterCrawlResult
+from alguerisme.core.crawler.models import LetterCrawlResults, LetterCrawlResult
 from alguerisme.jobs import run_crawl_job
 from alguerisme.notifications.manager import NotificationManager
 from alguerisme.reports import CrawlReport
@@ -141,16 +141,19 @@ def send_crawl_notification(self, results: list[dict]) -> dict:
 
     """
     letter_results = [LetterCrawlResult.from_dict(r) for r in results]
+    crawl_result = LetterCrawlResults.from_results(letter_results)
 
-    successful = [r for r in letter_results if not r.is_failed]
-    failed = [r for r in letter_results if r.is_failed]
+    successful_letters = crawl_result.success_letters
+    failed_letters = crawl_result.failed_letters
 
-    logger.info(f"Crawl complete: {len(successful)} successful, {len(failed)} failed")
-    if failed:
-        failed_letters = [r.letter for r in failed]
+    logger.info(
+        f"Crawl complete: {len(successful_letters)} successful, "
+        f"{len(failed_letters)} failed"
+    )
+    if failed_letters:
         logger.warning(f"Failed letters: {failed_letters}")
 
-    report = CrawlReport(letter_results)
+    report = CrawlReport(crawl_result)
 
     config = load_app_config()
     manager = NotificationManager(config)

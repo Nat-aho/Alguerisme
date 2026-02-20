@@ -12,6 +12,7 @@ from alguerisme.configs.loader import load_app_config
 from alguerisme.core.collector.models import (
     CollectionStats,
     LetterCollectionResult,
+    LetterCollectionResults,
 )
 from alguerisme.core.database import create_database_engine
 from alguerisme.core.database.crud import (
@@ -208,7 +209,8 @@ def send_collection_notification(
             logger.warning(f"  - Letter {result.letter}: {result.error}")
 
     # Send notification with detailed letter results
-    report = CollectionReport(letter_results, collection_type=collection_type)
+    collection_results = LetterCollectionResults.from_results(letter_results)
+    report = CollectionReport(collection_results, collection_type=collection_type)
     config = load_app_config()
     manager = NotificationManager(config)
 

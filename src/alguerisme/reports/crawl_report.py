@@ -2,7 +2,7 @@
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from alguerisme.core.crawler.models import CrawlMetrics, LetterCrawlResult
+from alguerisme.core.crawler.models import CrawlMetrics, LetterCrawlResults
 
 
 class CrawlReport:
@@ -22,18 +22,19 @@ class CrawlReport:
 
     def __init__(
         self,
-        results: list[LetterCrawlResult],
+        results: LetterCrawlResults,
     ):
         """
         Initialize crawl report.
 
         Parameters
         ----------
-        results : list[LetterCrawlResult]
-            List of results from each letter crawl task
+        results : CrawlResult
+            CrawlResult instance containing results from each letter crawl task
         template : ReportTemplate, optional
             Template configuration. Uses default if not provided.
         """
+        self.results = results
         self.metrics = CrawlMetrics.from_results(results)
 
     def format_telegram(self) -> str:
@@ -46,8 +47,11 @@ class CrawlReport:
             Markdown-formatted message for Telegram
         """
         template = self._jinja_env.get_template("telegram_crawl_report.jinja2")
+
         return template.render(
             metrics=self.metrics,
+            successful_results=self.results.successful_results,
+            failed_results=self.results.failed_results,
         ).strip()
 
     def format_console(self) -> str:
@@ -60,4 +64,8 @@ class CrawlReport:
             Plain text summary for logging
         """
         template = self._jinja_env.get_template("console_crawl_report.jinja2")
-        return template.render(metrics=self.metrics).strip()
+
+        return template.render(
+            metrics=self.metrics,
+            failed_letters=self.results.failed_letters,
+        ).strip()

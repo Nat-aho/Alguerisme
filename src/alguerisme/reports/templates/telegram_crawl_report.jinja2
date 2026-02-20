@@ -7,17 +7,15 @@
 • Total: {{ metrics.total_urls }}
 • Desades: {{ metrics.urls_saved }} (noves)
 • Saltades: {{ metrics.urls_skipped }} (ja existien)
-{% if metrics.urls_failed > 0 %}
+{% if metrics.urls_failed > 0 -%}
 • Fal·lides: {{ metrics.urls_failed }}
-{% endif %}
-
+{% endif -%}
 {% if metrics.failed_count > 0 %}
+
 **Lletres Fal·lides**:
-{% for result in letter_results %}
-{% if result.is_failed %}
+{% for result in failed_results -%}
 • {{ result.letter|upper }}: {{ result.error }}
-{% endif %}
-{% endfor %}
+{% endfor -%}
 {% endif %}
 
 🕐 {{ metrics.timestamp }}

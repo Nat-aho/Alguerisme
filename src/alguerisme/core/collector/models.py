@@ -204,6 +204,47 @@ class LetterCollectionResult:
 
 
 @dataclass(frozen=True)
+class LetterCollectionResults:
+    """Wrapper for collection results with convenient filtering properties."""
+
+    results: list[LetterCollectionResult]
+
+    @classmethod
+    def from_results(
+        cls, results: list[LetterCollectionResult]
+    ) -> "LetterCollectionResults":
+        """Create a LetterCollectionResults from a list of LetterCollectionResult."""
+        return cls(results=results)
+
+    @property
+    def successful_results(self) -> list[LetterCollectionResult]:
+        """List of successfully collected letter results."""
+        return sorted(
+            [r for r in self.results if not r.is_failed], key=lambda r: r.letter
+        )
+
+    @property
+    def failed_results(self) -> list[LetterCollectionResult]:
+        """List of failed letter results."""
+        return sorted([r for r in self.results if r.is_failed], key=lambda r: r.letter)
+
+    @property
+    def success_letters(self) -> list[str]:
+        """List of successfully collected letters."""
+        return sorted([r.letter for r in self.results if not r.is_failed])
+
+    @property
+    def failed_letters(self) -> list[str]:
+        """List of failed letters."""
+        return sorted([r.letter for r in self.results if r.is_failed])
+
+    @property
+    def total_letters(self) -> int:
+        """Total number of letters in results."""
+        return len(self.results)
+
+
+@dataclass(frozen=True)
 class CollectionMetrics:
     """Aggregated metrics from collection results."""
 
@@ -220,13 +261,13 @@ class CollectionMetrics:
 
     @classmethod
     def from_results(
-        cls, results: list[LetterCollectionResult], collection_type: str
+        cls, results: LetterCollectionResults, collection_type: str
     ) -> "CollectionMetrics":
         """Compute metrics from letter collection results."""
-        successful_stats = [r for r in results if not r.is_failed]
-        failed_stats = [r for r in results if r.is_failed]
+        successful_stats = results.successful_results
+        failed_stats = results.failed_results
 
-        total_letters = len(results)
+        total_letters = results.total_letters
         successful_count = len(successful_stats)
         failed_count = len(failed_stats)
 

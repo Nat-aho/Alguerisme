@@ -13,6 +13,7 @@ from alguerisme.core.collector.models import (
     ApplyChangesResult,
     CollectionStats,
     LetterCollectionResult,
+    LetterCollectionResults,
 )
 from alguerisme.core.database import create_database_engine
 from alguerisme.core.database.models import EntryURLs
@@ -203,7 +204,8 @@ def send_update_check_notification(
             logger.warning(f"  - Letter {result.letter}: {result.error}")
 
     # Send notification with detailed letter results
-    report = CollectionReport(letter_results, collection_type=collection_type)
+    collection_results = LetterCollectionResults.from_results(letter_results)
+    report = CollectionReport(collection_results, collection_type=collection_type)
     config = load_app_config()
     manager = NotificationManager(config)
 

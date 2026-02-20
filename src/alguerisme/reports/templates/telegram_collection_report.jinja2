@@ -7,29 +7,27 @@
 
 **URLs**
 • Total: {{ metrics.total_urls }}
-{% if metrics.urls_collected > 0 %}
+{% if metrics.urls_collected > 0 -%}
 • Col·lectades: {{ metrics.urls_collected }} (noves)
-{% endif %}
-{% if metrics.urls_unchanged > 0 %}
+{% endif -%}
+{% if metrics.urls_unchanged > 0 -%}
 • Sense canvis: {{ metrics.urls_unchanged }}
-{% endif %}
-{% if metrics.urls_changed > 0 %}
+{% endif -%}
+{% if metrics.urls_changed > 0 -%}
 • ⚠️ **Canvis detectats**: {{ metrics.urls_changed }} (pendent revisió)
-{% endif %}
-{% if metrics.urls_failed > 0 %}
+{% endif -%}
+{% if metrics.urls_failed > 0 -%}
 • Fal·lides: {{ metrics.urls_failed }}
-{% endif %}
-
+{% endif -%}
 {% if metrics.failed_count > 0 %}
-**Lletres Fal·lides**:
-{% for result in letter_results %}
-{% if result.is_failed %}
-• {{ result.letter|upper }}: {{ result.error }}
-{% endif %}
-{% endfor %}
-{% endif %}
 
+**Lletres Fal·lides**:
+{% for result in failed_results -%}
+• {{ result.letter|upper }}: {{ result.error }}
+{% endfor -%}
+{% endif -%}
 {% if metrics.urls_changed > 0 %}
+
 ⚠️ **ACCIÓ REQUERIDA**: Hi ha {{ metrics.urls_changed }} URLs amb canvis pendents de revisió!
 {% endif %}
 
