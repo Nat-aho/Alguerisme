@@ -87,7 +87,9 @@ class HTMLUpdateCheckerService:
         async def _check_with_limit(entry_url: EntryURLs) -> None:
             """Check a single URL with rate limiting."""
             async with semaphore:
-                result, status = await self._check_url(entry_url.url, entry_url.id)
+                result, status = await self._check_url(
+                    entry_url.url, entry_url.id, entry_url.letter
+                )
 
                 # Update stats based on status
                 if status == CollectionStatus.COLLECTED:
@@ -117,7 +119,7 @@ class HTMLUpdateCheckerService:
         return stats
 
     async def _check_url(
-        self, url: str, entry_url_id: UUID
+        self, url: str, entry_url_id: UUID, letter: str
     ) -> tuple[CollectionResult, CollectionStatus]:
         """Check a single URL for changes.
 
@@ -127,6 +129,8 @@ class HTMLUpdateCheckerService:
             URL to check
         entry_url_id : UUID
             ID of the entry_urls record
+        letter : str
+            Letter that this entry belongs to
 
         Returns
         -------
@@ -137,7 +141,7 @@ class HTMLUpdateCheckerService:
         logger.debug(f"Checking URL for updates: {url}")
 
         # Collect the HTML
-        result = await self.collector.collect(url, entry_url_id)
+        result = await self.collector.collect(url, entry_url_id, letter)
 
         # Check for changes and save
         if result.success:
@@ -220,10 +224,12 @@ class HTMLUpdateCheckerService:
         """
         assert result.entry_url_id is not None
         assert result.raw_html is not None
+        assert result.letter is not None
 
         html_create = VocabolsRawHTMLCreate(
             entry_url_id=result.entry_url_id,
             url=result.url,
+            letter=result.letter,
             raw_html=result.raw_html,
             content_hash=content_hash,
             http_status_code=result.http_status_code,

@@ -40,7 +40,10 @@ class HTMLCollector:
         )
 
     async def collect(
-        self, url: str, entry_url_id: Optional[UUID] = None
+        self,
+        url: str,
+        entry_url_id: Optional[UUID] = None,
+        letter: Optional[str] = None,
     ) -> CollectionResult:
         """Collect raw HTML content from a single URL.
 
@@ -50,6 +53,8 @@ class HTMLCollector:
             The URL to collect HTML from
         entry_url_id : Optional[UUID]
             Optional ID of the entry_urls record
+        letter : Optional[str]
+            Optional letter that this entry belongs to
 
         Returns
         -------
@@ -69,6 +74,7 @@ class HTMLCollector:
                 return CollectionResult.from_error(
                     url=url,
                     entry_url_id=entry_url_id,
+                    letter=letter,
                     error=error_msg,
                     status_code=response.status_code,
                 )
@@ -84,6 +90,7 @@ class HTMLCollector:
                 return CollectionResult.from_error(
                     url=url,
                     entry_url_id=entry_url_id,
+                    letter=letter,
                     error=error_msg,
                     status_code=200,
                 )
@@ -93,6 +100,7 @@ class HTMLCollector:
             return CollectionResult.from_success(
                 url=url,
                 entry_url_id=entry_url_id,
+                letter=letter,
                 raw_html=raw_html,
                 status_code=200,
             )
@@ -103,6 +111,7 @@ class HTMLCollector:
             return CollectionResult.from_error(
                 url=url,
                 entry_url_id=entry_url_id,
+                letter=letter,
                 error=error_msg,
                 status_code=0,
             )

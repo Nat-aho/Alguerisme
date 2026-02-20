@@ -125,7 +125,7 @@ class HTMLCollectorService:
         logger.debug(f"Collecting NEW URL: {url}")
 
         # Collect the HTML
-        result = await self.collector.collect(url, entry_url_id)
+        result = await self.collector.collect(url, entry_url_id, letter)
 
         # Save to database
         if result.success:

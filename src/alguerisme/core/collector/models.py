@@ -12,6 +12,7 @@ class CollectionResult:
 
     url: str
     entry_url_id: Optional[UUID]
+    letter: Optional[str]
     raw_html: Optional[str]
     http_status_code: int
     collected_at: datetime
@@ -27,6 +28,7 @@ class CollectionResult:
         cls,
         url: str,
         entry_url_id: Optional[UUID],
+        letter: Optional[str],
         error: str,
         status_code: int,
     ) -> "CollectionResult":
@@ -34,6 +36,7 @@ class CollectionResult:
         return cls(
             url=url,
             entry_url_id=entry_url_id,
+            letter=letter,
             raw_html=None,
             http_status_code=status_code,
             collected_at=datetime.now(timezone.utc),
@@ -45,6 +48,7 @@ class CollectionResult:
         cls,
         url: str,
         entry_url_id: Optional[UUID],
+        letter: Optional[str],
         raw_html: str,
         status_code: int = 200,
     ) -> "CollectionResult":
@@ -52,6 +56,7 @@ class CollectionResult:
         return cls(
             url=url,
             entry_url_id=entry_url_id,
+            letter=letter,
             raw_html=raw_html,
             http_status_code=status_code,
             collected_at=datetime.now(timezone.utc),
