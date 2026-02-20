@@ -111,8 +111,18 @@ class HTMLUpdateCheckerService:
         # Create tasks for all URLs
         tasks = [_check_with_limit(url) for url in entry_urls]
 
-        # Run all tasks concurrently
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Run all tasks concurrently and capture results
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Check for any exceptions that were caught
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                entry_url = entry_urls[i]
+                stats.urls_failed += 1
+                logger.error(
+                    f"Error checking {entry_url.url}: {result}",
+                    exc_info=result,
+                )
 
         logger.info(stats.summary())
 
