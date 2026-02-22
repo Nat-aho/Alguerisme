@@ -1,9 +1,13 @@
 services:
-  postgres:
+  db:
     image: postgres:16-alpine
-    container_name: alguerisme-postgres-prod
+    container_name: alguerisme-db-prod
     env_file:
       - .env.prod
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
@@ -47,7 +51,7 @@ services:
     # command: To be defined
     restart: always
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -67,7 +71,7 @@ services:
     command: ["celery", "-A", "alguerisme.celery.app", "worker", "--loglevel=info"]
     restart: always
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy

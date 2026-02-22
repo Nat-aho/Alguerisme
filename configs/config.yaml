@@ -54,6 +54,11 @@ crawler:
   request_delay: 1.0
   queue_timeout: 60.0  # Timeout in seconds waiting for next item in queue
 
+# Collector Configuration
+collector:
+  max_workers: 5
+  request_delay: 1.0
+
 # Notification Configuration
 notifications:
   telegram:

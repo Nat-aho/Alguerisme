@@ -162,6 +162,45 @@ class LetterCrawlResult:
 
 
 @dataclass(frozen=True)
+class LetterCrawlResults:
+    """Overall result of a crawl session."""
+
+    results: list[LetterCrawlResult]
+
+    @classmethod
+    def from_results(cls, results: list[LetterCrawlResult]) -> "LetterCrawlResults":
+        """Create a CrawlResult from a list of LetterCrawlResults."""
+        return cls(results=results)
+
+    @property
+    def successful_results(self) -> list[LetterCrawlResult]:
+        """List of successfully crawled letter results."""
+        return sorted(
+            [r for r in self.results if not r.is_failed], key=lambda r: r.letter
+        )
+
+    @property
+    def failed_results(self) -> list[LetterCrawlResult]:
+        """List of failed letter results."""
+        return sorted([r for r in self.results if r.is_failed], key=lambda r: r.letter)
+
+    @property
+    def success_letters(self) -> list[str]:
+        """List of successfully crawled letters."""
+        return sorted([r.letter for r in self.results if not r.is_failed])
+
+    @property
+    def failed_letters(self) -> list[str]:
+        """List of failed letters."""
+        return sorted([r.letter for r in self.results if r.is_failed])
+
+    @property
+    def total_letters(self) -> int:
+        """Total number of letters crawled."""
+        return len(self.results)
+
+
+@dataclass(frozen=True)
 class CrawlMetrics:
     """Aggregated metrics from crawl results."""
 
@@ -175,12 +214,12 @@ class CrawlMetrics:
     timestamp: str
 
     @classmethod
-    def from_results(cls, results: list[LetterCrawlResult]) -> "CrawlMetrics":
+    def from_results(cls, results: LetterCrawlResults) -> "CrawlMetrics":
         """Compute metrics from letter crawl results."""
-        successful_stats = [r for r in results if not r.is_failed]
-        failed_stats = [r for r in results if r.is_failed]
+        successful_stats = results.successful_results
+        failed_stats = results.failed_results
 
-        total_letters = len(results)
+        total_letters = results.total_letters
         successful_count = len(successful_stats)
         failed_count = len(failed_stats)
 

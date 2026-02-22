@@ -4,7 +4,7 @@ import typer
 
 from .crawler_cli import app as crawler_app
 from .db import app as db_app
-from .tasks_cli import app as tasks_app
+from .tasks import app as tasks_app
 
 app = typer.Typer(
     name="alguerisme",

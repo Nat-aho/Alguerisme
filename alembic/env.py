@@ -33,11 +33,22 @@ from sqlmodel.sql.sqltypes import AutoString
 from alembic import context
 from alguerisme.configs.database import DatabaseConfig
 from alguerisme.core.database import get_database_url
+
+# Import enums first to avoid circular dependency issues
+from alguerisme.core.collector.enums import ChangeStatus, ChangeType  # noqa: F401
+
+# Now import models (they depend on enums being available)
 from alguerisme.core.database.models import (
     EntryURLs,
+    VocabolsHtmlChanges,
+    VocabolsRawHTML,
 )
 
-_alembic_models = (EntryURLs,)  # Add SQLModel models here for autogeneration support
+_alembic_models = (
+    EntryURLs,
+    VocabolsRawHTML,
+    VocabolsHtmlChanges,
+)  # Add SQLModel models here for autogeneration support
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -46,7 +57,7 @@ config = context.config
 # Load database configuration from environment variables
 # Make sure to load .env file before running alembic
 # Example: dotenv run --dotenv .env.dev alembic upgrade head
-db_config = DatabaseConfig.from_env()
+db_config = DatabaseConfig()
 database_url = get_database_url(db_config)
 
 # Override the sqlalchemy.url with our configured database URL

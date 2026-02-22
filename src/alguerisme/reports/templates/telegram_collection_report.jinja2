@@ -1,0 +1,34 @@
+📊 **Resultats Col·lecció HTML**
+
+**Tipus**: {% if metrics.collection_type == "new" %}Noves URLs{% else %}Detecció canvis{% endif %}
+
+**Lletres**: {{ metrics.successful_count }}/{{ metrics.total_letters }} exitoses
+{% if metrics.failed_count > 0 %}⚠️ {{ metrics.failed_count }} fal·lides{% endif %}
+
+**URLs**
+• Total: {{ metrics.total_urls }}
+{% if metrics.urls_collected > 0 -%}
+• Col·lectades: {{ metrics.urls_collected }} (noves)
+{% endif -%}
+{% if metrics.urls_unchanged > 0 -%}
+• Sense canvis: {{ metrics.urls_unchanged }}
+{% endif -%}
+{% if metrics.urls_changed > 0 -%}
+• ⚠️ **Canvis detectats**: {{ metrics.urls_changed }} (pendent revisió)
+{% endif -%}
+{% if metrics.urls_failed > 0 -%}
+• Fal·lides: {{ metrics.urls_failed }}
+{% endif -%}
+{% if metrics.failed_count > 0 %}
+
+**Lletres Fal·lides**:
+{% for result in failed_results -%}
+• {{ result.letter|upper }}: {{ result.error }}
+{% endfor -%}
+{% endif -%}
+{% if metrics.urls_changed > 0 %}
+
+⚠️ **ACCIÓ REQUERIDA**: Hi ha {{ metrics.urls_changed }} URLs amb canvis pendents de revisió!
+{% endif %}
+
+🕐 {{ metrics.timestamp }}

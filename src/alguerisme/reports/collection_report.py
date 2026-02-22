@@ -1,16 +1,19 @@
-"""Crawl report formatting and presentation."""
+"""Collection report formatting and presentation."""
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from alguerisme.core.crawler.models import CrawlMetrics, LetterCrawlResults
+from alguerisme.core.collector.models import (
+    CollectionMetrics,
+    LetterCollectionResults,
+)
 
 
-class CrawlReport:
+class CollectionReport:
     """
-    Crawler results report with multiple format outputs.
+    Collection results report with multiple format outputs.
 
-    This class takes computed metrics and provides formatted output
-    for different notification channels using Jinja2 templates.
+    This class provides formatted output for different notification channels
+    using Jinja2 templates. Accepts letter-level results for detailed reporting.
     """
 
     _jinja_env = Environment(
@@ -22,20 +25,22 @@ class CrawlReport:
 
     def __init__(
         self,
-        results: LetterCrawlResults,
+        results: LetterCollectionResults,
+        collection_type: str = "new",
     ):
         """
-        Initialize crawl report.
+        Initialize collection report.
 
         Parameters
         ----------
-        results : CrawlResult
-            CrawlResult instance containing results from each letter crawl task
-        template : ReportTemplate, optional
-            Template configuration. Uses default if not provided.
+        results : LetterCollectionResults
+            LetterCollectionResults instance containing results from each
+            letter collection task
+        collection_type : str
+            Type of collection: "new" or "update_check"
         """
         self.results = results
-        self.metrics = CrawlMetrics.from_results(results)
+        self.metrics = CollectionMetrics.from_results(results, collection_type)
 
     def format_telegram(self) -> str:
         """
@@ -46,7 +51,7 @@ class CrawlReport:
         str
             Markdown-formatted message for Telegram
         """
-        template = self._jinja_env.get_template("telegram_crawl_report.jinja2")
+        template = self._jinja_env.get_template("telegram_collection_report.jinja2")
 
         return template.render(
             metrics=self.metrics,
@@ -63,7 +68,7 @@ class CrawlReport:
         str
             Plain text summary for logging
         """
-        template = self._jinja_env.get_template("console_crawl_report.jinja2")
+        template = self._jinja_env.get_template("console_collection_report.jinja2")
 
         return template.render(
             metrics=self.metrics,
