@@ -155,7 +155,7 @@ def trigger_apply_changes():
     It will:
     1. Find all APPROVED changes
     2. Apply them to the vocabols_raw_html table
-    3. Update the change status to APPLIED
+    3. Remove the applied change records from vocabols_html_changes
     """
     from alguerisme.celery.tasks.html_update_tasks import (
         apply_approved_changes_task,
