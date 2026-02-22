@@ -26,20 +26,20 @@ def build_celery_app() -> Celery:
     )
 
     app.conf.beat_schedule = {
-        "daily-crawl-midnight": {
+        "urls-vocabols-crawler": {
             "task": "alguerisme.celery.tasks.crawler_tasks.crawl_letters",
-            "schedule": crontab(hour=0, minute=0),
+            "schedule": crontab(day_of_week=1, hour=2, minute=0),
         },
-        "weekly-collect-new-vocabols": {
+        "html-vocabols-collector": {
             "task": "alguerisme.celery.tasks.html_collector_tasks.collect_new_vocabols",
-            "schedule": crontab(day_of_week=1, hour=2, minute=0),  # Monday 2 AM
+            "schedule": crontab(day_of_week=2, hour=2, minute=0),
         },
-        "monthly-check-vocabols-updates": {
+        "html-vocabols-updates-check": {
             "task": (
                 "alguerisme.celery.tasks.html_update_tasks"
                 ".check_vocabols_updates"
             ),
-            "schedule": crontab(day_of_month=1, hour=3, minute=0),  # 1st of month, 3 AM
+            "schedule": crontab(day_of_week=3, hour=2, minute=0),
         },
     }
 
