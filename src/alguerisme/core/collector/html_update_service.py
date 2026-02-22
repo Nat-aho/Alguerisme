@@ -10,6 +10,7 @@ from alguerisme.core.collector.enums import ChangeStatus, CollectionStatus
 from alguerisme.core.collector.html_collector import HTMLCollector
 from alguerisme.core.collector.models import CollectionResult, CollectionStats
 from alguerisme.core.collector.utils import (
+    ChangeMetrics,
     calculate_change_metrics,
     calculate_content_hash,
 )
@@ -24,7 +25,9 @@ from alguerisme.core.database.crud import (
 )
 from alguerisme.core.database.models import (
     EntryURLs,
+    VocabolsHtmlChanges,
     VocabolsHtmlChangesCreate,
+    VocabolsRawHTML,
     VocabolsRawHTMLCreate,
 )
 
@@ -306,7 +309,11 @@ class HTMLUpdateCheckerService:
         return self._create_change_record(result, current, new_hash, metrics)
 
     def _handle_rejected_change(
-        self, rejected, result: CollectionResult, new_hash: str, metrics
+        self,
+        rejected: VocabolsHtmlChanges,
+        result: CollectionResult,
+        new_hash: str,
+        metrics: ChangeMetrics,
     ) -> CollectionStatus:
         """Handle a previously rejected change.
 
@@ -334,6 +341,9 @@ class HTMLUpdateCheckerService:
 
         # Different change detected - reset to PENDING
         logger.info(f"Overwriting rejected change for {result.url}: new hash detected")
+        # Assert validates that raw_html is not None
+        # (already checked in _check_and_save_changes)
+        assert result.raw_html is not None
         rejected.new_html = result.raw_html
         rejected.new_hash = new_hash
         rejected.size_change_bytes = metrics.size_change_bytes
@@ -351,7 +361,11 @@ class HTMLUpdateCheckerService:
         return CollectionStatus.CHANGED
 
     def _update_pending_change(
-        self, pending, result: CollectionResult, new_hash: str, metrics
+        self,
+        pending: VocabolsHtmlChanges,
+        result: CollectionResult,
+        new_hash: str,
+        metrics: ChangeMetrics,
     ) -> CollectionStatus:
         """Update an existing pending change with latest data.
 
@@ -372,6 +386,9 @@ class HTMLUpdateCheckerService:
             CHANGED
 
         """
+        # Assert validates that raw_html is not None
+        # (already checked in _check_and_save_changes)
+        assert result.raw_html is not None
         pending.new_html = result.raw_html
         pending.new_hash = new_hash
         pending.size_change_bytes = metrics.size_change_bytes
@@ -386,7 +403,11 @@ class HTMLUpdateCheckerService:
         return CollectionStatus.CHANGED
 
     def _create_change_record(
-        self, result: CollectionResult, current, new_hash: str, metrics
+        self,
+        result: CollectionResult,
+        current: VocabolsRawHTML,
+        new_hash: str,
+        metrics: ChangeMetrics,
     ) -> CollectionStatus:
         """Create a new change record for review.
 
