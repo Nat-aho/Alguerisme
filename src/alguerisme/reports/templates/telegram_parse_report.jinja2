@@ -1,0 +1,19 @@
+🔍 **Resultats Anàlisi**
+
+**Lletres**: {{ results.successful_results|length }}/{{ results.results|length }} exitoses
+{% if results.failed_results|length > 0 %}⚠️ {{ results.failed_results|length }} fal·lides{% endif %}
+
+**Entrades**
+• Analitzades: {{ results.total_parsed }}
+• Fal·lides: {{ results.total_failed }}
+• Saltades (sense HTML): {{ results.total_skipped_no_html }}
+• Saltades (buides): {{ results.total_skipped_empty }}
+{% if results.failed_results|length > 0 %}
+
+**Lletres Fal·lides**:
+{% for result in failed_results -%}
+• {{ result.letter|upper }}: {{ result.error }}
+{% endfor -%}
+{% endif %}
+
+**Lletres Processades**: {{ results.success_letters | join(', ') | upper if results.success_letters else 'Cap' }}

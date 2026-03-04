@@ -4,6 +4,7 @@ import typer
 
 from .crawler_cli import app as crawler_app
 from .db import app as db_app
+from .parser_cli import app as parser_app
 from .tasks import app as tasks_app
 
 app = typer.Typer(
@@ -15,6 +16,7 @@ app = typer.Typer(
 
 app.add_typer(crawler_app, name="crawler", help="Run the web crawler")
 app.add_typer(db_app, name="db", help="Database operations and management")
+app.add_typer(parser_app, name="parser", help="Parse raw HTML vocabol entries")
 app.add_typer(tasks_app, name="tasks", help="Trigger Celery tasks")
 
 

@@ -10,6 +10,6 @@ app = typer.Typer(
 )
 
 # Import command modules to register them with the app
-from alguerisme.clis.tasks import collector, crawler  # noqa: E402, F401
+from alguerisme.clis.tasks import collector, crawler, parser  # noqa: E402, F401
 
-__all__ = ["app", "collector", "crawler"]
+__all__ = ["app", "collector", "crawler", "parser"]

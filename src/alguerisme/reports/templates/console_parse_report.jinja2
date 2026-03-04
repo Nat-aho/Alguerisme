@@ -1,0 +1,1 @@
+Parse Summary: {{ results.successful_results|length }}/{{ results.results|length }} letters | {{ results.total_parsed }} parsed | {{ results.total_failed }} failed | {{ results.total_skipped_no_html + results.total_skipped_empty }} skipped{% if results.failed_results|length > 0 %} | Failed letters: {{ failed_letters | join(', ') }}{% endif %}
