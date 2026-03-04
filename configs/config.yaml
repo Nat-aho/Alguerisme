@@ -47,6 +47,16 @@ web_dictionary:
   entry_link_prefix: "/vocabols/"
   entry_link_suffix: ".aspx"
   content_selector: "#cntBody_pnlNews"
+  # Parser selectors (moved here so selector rules live with the dictionary config)
+  algueres_word_selector: "#cntBody_label_Alg"
+  algueres_definition_selector: "#cntBody_txtDefinizione_Alg"
+  catalan_word_selector: "#cntBody_label_Cat"
+  catalan_definition_selector: "#cntBody_txtDefinizione_Cat"
+  italian_word_selector: "#cntBody_label_Ita"
+  italian_definition_selector: "#cntBody_txtDefinizione_Ita"
+  image_selector: "#cntBody_pnlFoto img[src]"
+  audio_embed_selector: "#cntBody_pnlAudio embed"
+  audio_tag_selector: "#cntBody_pnlAudio audio[src]"
 
 # Crawler Configuration
 crawler:
@@ -58,6 +68,12 @@ crawler:
 collector:
   max_workers: 5
   request_delay: 1.0
+
+# Parser Configuration
+parser:
+  # Runtime parser settings (selectors are part of `web_dictionary` above)
+  parsing_version: "1.0"
+  max_workers: 10
 
 # Notification Configuration
 notifications:
