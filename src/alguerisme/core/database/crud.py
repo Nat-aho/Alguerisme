@@ -12,6 +12,9 @@ from .models import (
     EntryURLs,
     EntryURLsCreate,
     EntryURLsUpdate,
+    ParsedVocabols,
+    ParsedVocabolsCreate,
+    ParsedVocabolsUpdate,
     VocabolsHtmlChanges,
     VocabolsHtmlChangesCreate,
     VocabolsRawHTML,
@@ -1032,3 +1035,243 @@ def update_pending_change(
     session.commit()
     session.refresh(change)
     return change
+
+
+# ============================================================================
+# ParsedVocabols CRUD Operations
+# ============================================================================
+
+
+def create_parsed_vocabol(
+    session: Session, parsed_create: ParsedVocabolsCreate
+) -> ParsedVocabols:
+    """Create a new parsed vocabol entry and commit.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_create : ParsedVocabolsCreate
+        Data for creating the parsed entry
+
+    Returns
+    -------
+    ParsedVocabols
+        The created ParsedVocabols instance
+
+    """
+    parsed = ParsedVocabols.model_validate(parsed_create)
+    session.add(parsed)
+    session.commit()
+    session.refresh(parsed)
+    return parsed
+
+
+def add_parsed_vocabol_to_session(
+    session: Session, parsed_create: ParsedVocabolsCreate
+) -> ParsedVocabols:
+    """Add a new parsed vocabol to session without committing.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_create : ParsedVocabolsCreate
+        Data for creating the parsed entry
+
+    Returns
+    -------
+    ParsedVocabols
+        The created ParsedVocabols instance (not yet committed)
+
+    """
+    parsed = ParsedVocabols.model_validate(parsed_create)
+    session.add(parsed)
+    return parsed
+
+
+def get_parsed_vocabol_by_id(
+    session: Session, id: UUID
+) -> Optional[ParsedVocabols]:
+    """Get parsed vocabol by ID.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    id : UUID
+        Parsed entry UUID
+
+    Returns
+    -------
+    Optional[ParsedVocabols]
+        ParsedVocabols if found, None otherwise
+
+    """
+    return session.get(ParsedVocabols, id)
+
+
+def get_parsed_vocabol_by_entry_url_id(
+    session: Session, entry_url_id: UUID
+) -> Optional[ParsedVocabols]:
+    """Get parsed vocabol by entry_url_id.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    entry_url_id : UUID
+        Entry URL UUID
+
+    Returns
+    -------
+    Optional[ParsedVocabols]
+        ParsedVocabols if found, None otherwise
+
+    """
+    statement = select(ParsedVocabols).where(
+        ParsedVocabols.entry_url_id == entry_url_id
+    )
+    return session.exec(statement).first()
+
+
+def find_parsed_vocabol_by_url(
+    session: Session, url: str
+) -> Optional[ParsedVocabols]:
+    """Find parsed vocabol by URL.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    url : str
+        URL to search for
+
+    Returns
+    -------
+    Optional[ParsedVocabols]
+        ParsedVocabols if found, None otherwise
+
+    """
+    statement = select(ParsedVocabols).where(ParsedVocabols.url == url)
+    return session.exec(statement).first()
+
+
+def get_unparsed_vocabols(
+    session: Session, limit: Optional[int] = None
+) -> list[VocabolsRawHTML]:
+    """Get raw HTML entries that haven't been parsed yet.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : Optional[int]
+        Maximum number of entries to return
+
+    Returns
+    -------
+    list[VocabolsRawHTML]
+        List of unparsed raw HTML entries
+
+    """
+    # Subquery to get entry_url_ids that have been parsed
+    parsed_ids_subquery = select(ParsedVocabols.entry_url_id)
+
+    # Main query: get raw HTML where entry_url_id NOT IN parsed_ids
+    statement = (
+        select(VocabolsRawHTML)
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
+        .where(VocabolsRawHTML.raw_html.isnot(None))  # Only entries with HTML
+        .where(VocabolsRawHTML.http_status_code == 200)  # Only successful fetches
+    )
+
+    if limit:
+        statement = statement.limit(limit)
+
+    return list(session.exec(statement).all())
+
+
+def get_unparsed_vocabols_by_letter(
+    session: Session, letter: str, limit: Optional[int] = None
+) -> list[VocabolsRawHTML]:
+    """Get unparsed raw HTML entries for a specific letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to filter by
+    limit : Optional[int]
+        Maximum number of entries to return
+
+    Returns
+    -------
+    list[VocabolsRawHTML]
+        List of unparsed raw HTML entries for the letter
+
+    """
+    normalized_letter = normalize_letter(letter)
+
+    # Subquery to get entry_url_ids that have been parsed
+    parsed_ids_subquery = select(ParsedVocabols.entry_url_id)
+
+    # Main query with letter filter
+    statement = (
+        select(VocabolsRawHTML)
+        .where(VocabolsRawHTML.letter == normalized_letter)
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
+        .where(VocabolsRawHTML.raw_html.isnot(None))
+        .where(VocabolsRawHTML.http_status_code == 200)
+    )
+
+    if limit:
+        statement = statement.limit(limit)
+
+    return list(session.exec(statement).all())
+
+
+def count_unparsed_vocabols(session: Session) -> int:
+    """Count total unparsed vocabols.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    int
+        Count of unparsed entries
+
+    """
+    parsed_ids_subquery = select(ParsedVocabols.entry_url_id)
+
+    statement = (
+        select(func.count())
+        .select_from(VocabolsRawHTML)
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
+        .where(VocabolsRawHTML.raw_html.isnot(None))
+        .where(VocabolsRawHTML.http_status_code == 200)
+    )
+
+    return session.exec(statement).one()
+
+
+def count_parsed_vocabols(session: Session) -> int:
+    """Count total parsed vocabols.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    int
+        Count of parsed entries
+
+    """
+    statement = select(func.count()).select_from(ParsedVocabols)
+    return session.exec(statement).one()

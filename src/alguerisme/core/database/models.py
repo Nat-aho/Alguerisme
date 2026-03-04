@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 
@@ -162,5 +164,90 @@ class VocabolsHtmlChanges(VocabolsHtmlChangesBase, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     detected_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), index=True
+    )
+
+
+# ============================================================================
+# ParsedVocabols Models
+# ============================================================================
+
+
+class ParsedVocabolsBase(SQLModel):
+    """Base model for ParsedVocabols with shared fields."""
+
+    entry_url_id: uuid.UUID = Field(
+        foreign_key="entry_urls.id", unique=True, index=True
+    )  # One parsed version per URL
+    raw_html_id: uuid.UUID = Field(
+        foreign_key="vocabols_raw_html.id", index=True
+    )  # Link to source HTML for lineage
+
+    url: str = Field(nullable=False, index=True)
+
+    # Parsed text fields
+    algueres_word: Optional[str] = Field(default=None, index=True)
+    algueres_definition: Optional[str] = Field(default=None)
+    catalan_word: Optional[str] = Field(default=None, index=True)
+    catalan_definition: Optional[str] = Field(default=None)
+    italian_word: Optional[str] = Field(default=None, index=True)
+    italian_definition: Optional[str] = Field(default=None)
+
+    # Media URLs - stored as JSONB
+    # None = not yet parsed, [] = parsed but no media, ["url"] = has media
+    image_urls: Optional[list[str]] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    audio_urls: Optional[list[str]] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+
+    # URL counts for easy filtering (derived from arrays above)
+    image_url_count: int = Field(default=0, index=True)
+    audio_url_count: int = Field(default=0, index=True)
+
+    # Metadata
+    parsing_errors: Optional[str] = Field(default=None)
+
+
+class ParsedVocabolsCreate(ParsedVocabolsBase):
+    """Model for creating a new ParsedVocabols entry.
+
+    Used when inserting new parsed entries.
+    Does not include id or parsed_at (auto-generated).
+    """
+
+    pass
+
+
+class ParsedVocabolsUpdate(SQLModel):
+    """Model for updating an existing ParsedVocabols entry.
+
+    All fields optional to allow partial updates.
+    """
+
+    algueres_word: Optional[str] = Field(default=None)
+    algueres_definition: Optional[str] = Field(default=None)
+    catalan_word: Optional[str] = Field(default=None)
+    catalan_definition: Optional[str] = Field(default=None)
+    italian_word: Optional[str] = Field(default=None)
+    italian_definition: Optional[str] = Field(default=None)
+    image_urls: Optional[list[str]] = Field(default=None)
+    audio_urls: Optional[list[str]] = Field(default=None)
+    image_url_count: Optional[int] = Field(default=None)
+    audio_url_count: Optional[int] = Field(default=None)
+    parsing_errors: Optional[str] = Field(default=None)
+
+
+class ParsedVocabols(ParsedVocabolsBase, table=True):
+    """Database model for parsed vocabol entries.
+
+    Contains structured data extracted from raw HTML.
+    """
+
+    __tablename__: str = "parsed_vocabols"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    parsed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), index=True
     )

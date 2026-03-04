@@ -12,6 +12,7 @@ from alguerisme.configs.crawler import CrawlerConfig
 from alguerisme.configs.database import DatabaseConfig
 from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.notifications import NotificationConfig
+from alguerisme.configs.parser import ParserConfig
 from alguerisme.configs.web_dictionary import WebDictionaryConfig
 
 
@@ -41,6 +42,10 @@ class AppConfig(BaseModel):
     collector: CollectorConfig = Field(
         default_factory=CollectorConfig,
         description="Collector configuration",
+    )
+    parser: ParserConfig = Field(
+        default_factory=ParserConfig,
+        description="Parser configuration",
     )
     notifications: NotificationConfig = Field(
         default_factory=NotificationConfig,
