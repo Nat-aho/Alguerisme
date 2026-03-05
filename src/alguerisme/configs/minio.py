@@ -1,5 +1,7 @@
 """MinIO configuration models."""
 
+import os
+
 from pydantic import BaseModel, Field, PrivateAttr, SecretStr
 
 from alguerisme.utils.secrets import get_secret
@@ -8,8 +10,13 @@ from alguerisme.utils.secrets import get_secret
 class MinioConfig(BaseModel):
     """Configuration for MinIO object storage.
 
-    Connection settings are configured in YAML.
-    Credentials (access_key, secret_key) are loaded from secrets files.
+    Connection settings (host, port, secure) are loaded from environment variables.
+    Bucket name and region are configured via YAML config file.
+
+    Environment Variables:
+        MINIO_HOST: MinIO host
+        MINIO_PORT: MinIO port
+        MINIO_SECURE: Use HTTPS (true/false)
 
     Secrets:
         minio_root_user: MinIO access key
@@ -17,12 +24,14 @@ class MinioConfig(BaseModel):
 
     Attributes
     ----------
-    endpoint : str
-        MinIO server endpoint (host:port)
-    bucket_name : str
-        Bucket name for storing images
+    host : str
+        MinIO server host
+    port : int
+        MinIO server port
     secure : bool
         Use HTTPS instead of HTTP
+    bucket_name : str
+        Bucket name for storing images
     region : str
         Region name (optional, for S3 compatibility)
 
@@ -30,15 +39,23 @@ class MinioConfig(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    # Connection settings - configured in YAML
-    endpoint: str = Field(
-        default="minio:9000", description="MinIO server endpoint (host:port)"
+    # Connection settings - loaded from environment
+    host: str = Field(
+        default_factory=lambda: os.getenv("MINIO_HOST", "minio"),
+        description="MinIO server host",
     )
-    bucket_name: str = Field(
-        default="alguerisme-images", description="Bucket name for storing images"
+    port: int = Field(
+        default_factory=lambda: int(os.getenv("MINIO_PORT", "9000")),
+        description="MinIO server port",
     )
     secure: bool = Field(
-        default=False, description="Use HTTPS connection (False for dev)"
+        default_factory=lambda: os.getenv("MINIO_SECURE", "false").lower() == "true",
+        description="Use HTTPS connection",
+    )
+
+    # Application settings - configured in YAML
+    bucket_name: str = Field(
+        default="alguerisme-images", description="Bucket name for storing images"
     )
     region: str = Field(
         default="us-east-1", description="Region name for S3 compatibility"
@@ -47,6 +64,7 @@ class MinioConfig(BaseModel):
     # Private cached credentials
     _access_key: SecretStr | None = PrivateAttr(default=None)
     _secret_key: SecretStr | None = PrivateAttr(default=None)
+    _endpoint: str | None = PrivateAttr(default=None)
 
     @property
     def access_key(self) -> str:
@@ -61,3 +79,10 @@ class MinioConfig(BaseModel):
         if self._secret_key is None:
             self._secret_key = SecretStr(get_secret("minio_root_password"))
         return self._secret_key.get_secret_value()
+
+    @property
+    def endpoint(self) -> str:
+        """Construct the MinIO endpoint from host and port."""
+        if self._endpoint is None:
+            self._endpoint = f"{self.host}:{self.port}"
+        return self._endpoint
