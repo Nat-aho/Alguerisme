@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column
+from pydantic import BaseModel
+from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -251,3 +252,109 @@ class ParsedVocabols(ParsedVocabolsBase, table=True):
     parsed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), index=True
     )
+
+
+# ============================================================================
+# VocabolsImages Models (MinIO-backed image storage)
+# ============================================================================
+
+
+class VocabolsImagesBase(SQLModel):
+    """Base model for VocabolsImages with shared fields."""
+
+    parsed_vocabol_id: uuid.UUID = Field(
+        foreign_key="parsed_vocabols.id", index=True
+    )  # Multiple images per parsed vocabol allowed
+    source_url: str = Field(nullable=False, index=True)
+    s3_key: str = Field(nullable=False, index=True)  # MinIO object key path
+    s3_bucket: str = Field(default="alguerisme-images")
+
+    # Track which parsing version this image came from
+    source_parsed_at: datetime = Field(
+        nullable=False,
+        index=True,
+        description="parsed_vocabols.parsed_at at time of collection",
+    )
+
+    content_type: Optional[str] = Field(default=None, max_length=50)
+    size_bytes: Optional[int] = Field(default=None)
+    content_hash: Optional[str] = Field(
+        default=None, max_length=64, index=True
+    )  # SHA256 hash
+    collection_status: str = Field(
+        default="pending", max_length=20, index=True
+    )  # pending, success, failed
+    error_message: Optional[str] = Field(default=None)
+
+
+class VocabolsImagesCreate(VocabolsImagesBase):
+    """Model for creating a new VocabolsImages entry.
+
+    Used when inserting new collected images.
+    Does not include id or collected_at (auto-generated).
+    """
+
+    pass
+
+
+class VocabolsImagesUpdate(SQLModel):
+    """Model for updating an existing VocabolsImages entry.
+
+    All fields optional to allow partial updates.
+    """
+
+    s3_key: Optional[str] = Field(default=None)
+    s3_bucket: Optional[str] = Field(default=None)
+    content_type: Optional[str] = Field(default=None)
+    size_bytes: Optional[int] = Field(default=None)
+    content_hash: Optional[str] = Field(default=None)
+    collection_status: Optional[str] = Field(default=None)
+    error_message: Optional[str] = Field(default=None)
+
+
+class VocabolsImages(VocabolsImagesBase, table=True):
+    """Database model for vocabol images stored in MinIO.
+
+    Stores metadata and S3 keys for images, actual binary data is in MinIO.
+    """
+
+    __tablename__: str = "vocabols_images"
+    __table_args__ = (
+        UniqueConstraint(
+            "parsed_vocabol_id",
+            "source_url",
+            name="uq_vocabol_image_url",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    collected_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), index=True
+    )
+
+
+# ============================================================================
+# Stats Models (Pydantic models for query results)
+# ============================================================================
+
+
+class ParsedVocabolsOverallStats(BaseModel):
+    """Overall statistics for all parsed vocabols."""
+
+    total: int
+    with_images: int
+    with_audio: int
+    total_images: int
+    total_audio: int
+    with_errors: int
+
+
+class ParsedVocabolsLetterStats(BaseModel):
+    """Statistics for parsed vocabols for a specific letter."""
+
+    letter: str
+    total: int
+    with_images: int
+    with_audio: int
+    avg_images: float
+    avg_audio: float

@@ -14,9 +14,13 @@ from .models import (
     EntryURLsUpdate,
     ParsedVocabols,
     ParsedVocabolsCreate,
-    ParsedVocabolsUpdate,
+    ParsedVocabolsLetterStats,
+    ParsedVocabolsOverallStats,
     VocabolsHtmlChanges,
     VocabolsHtmlChangesCreate,
+    VocabolsImages,
+    VocabolsImagesCreate,
+    VocabolsImagesUpdate,
     VocabolsRawHTML,
     VocabolsRawHTMLCreate,
     VocabolsRawHTMLUpdate,
@@ -1090,9 +1094,7 @@ def add_parsed_vocabol_to_session(
     return parsed
 
 
-def get_parsed_vocabol_by_id(
-    session: Session, id: UUID
-) -> Optional[ParsedVocabols]:
+def get_parsed_vocabol_by_id(session: Session, id: UUID) -> Optional[ParsedVocabols]:
     """Get parsed vocabol by ID.
 
     Parameters
@@ -1135,9 +1137,7 @@ def get_parsed_vocabol_by_entry_url_id(
     return session.exec(statement).first()
 
 
-def find_parsed_vocabol_by_url(
-    session: Session, url: str
-) -> Optional[ParsedVocabols]:
+def find_parsed_vocabol_by_url(session: Session, url: str) -> Optional[ParsedVocabols]:
     """Find parsed vocabol by URL.
 
     Parameters
@@ -1181,8 +1181,8 @@ def get_unparsed_vocabols(
     # Main query: get raw HTML where entry_url_id NOT IN parsed_ids
     statement = (
         select(VocabolsRawHTML)
-        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
-        .where(VocabolsRawHTML.raw_html.isnot(None))  # Only entries with HTML
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))  # type: ignore[attr-defined]
+        .where(VocabolsRawHTML.raw_html.isnot(None))  # type: ignore[attr-defined]  # Only entries with HTML
         .where(VocabolsRawHTML.http_status_code == 200)  # Only successful fetches
     )
 
@@ -1221,8 +1221,8 @@ def get_unparsed_vocabols_by_letter(
     statement = (
         select(VocabolsRawHTML)
         .where(VocabolsRawHTML.letter == normalized_letter)
-        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
-        .where(VocabolsRawHTML.raw_html.isnot(None))
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))  # type: ignore[attr-defined]
+        .where(VocabolsRawHTML.raw_html.isnot(None))  # type: ignore[attr-defined]
         .where(VocabolsRawHTML.http_status_code == 200)
     )
 
@@ -1251,8 +1251,8 @@ def count_unparsed_vocabols(session: Session) -> int:
     statement = (
         select(func.count())
         .select_from(VocabolsRawHTML)
-        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))
-        .where(VocabolsRawHTML.raw_html.isnot(None))
+        .where(VocabolsRawHTML.entry_url_id.notin_(parsed_ids_subquery))  # type: ignore[attr-defined]
+        .where(VocabolsRawHTML.raw_html.isnot(None))  # type: ignore[attr-defined]
         .where(VocabolsRawHTML.http_status_code == 200)
     )
 
@@ -1275,3 +1275,481 @@ def count_parsed_vocabols(session: Session) -> int:
     """
     statement = select(func.count()).select_from(ParsedVocabols)
     return session.exec(statement).one()
+
+
+def get_parsed_vocabols_list(
+    session: Session,
+    limit: int = 50,
+    letters: Optional[list[str]] = None,
+    with_images: Optional[bool] = None,
+    with_audio: Optional[bool] = None,
+) -> list[ParsedVocabols]:
+    """Get list of parsed vocabols with optional filters.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : int
+        Maximum number of results to return
+    letters : Optional[list[str]]
+        Letters to filter by (e.g., ['A', 'B', 'C']). Uses all if None.
+    with_images : Optional[bool]
+        Filter by presence of images (True=with, False=without, None=no filter)
+    with_audio : Optional[bool]
+        Filter by presence of audio (True=with, False=without, None=no filter)
+
+    Returns
+    -------
+    list[ParsedVocabols]
+        List of parsed vocabols matching the filters
+
+    """
+    statement = select(ParsedVocabols)
+
+    # Filter by letters if provided
+    if letters:
+        # Get entry_url_ids for these letters
+        entry_url_ids = []
+        for letter in letters:
+            normalized = normalize_letter(letter)
+            entry_urls = get_entry_urls_by_letter(session, normalized)
+            entry_url_ids.extend([eu.id for eu in entry_urls])
+
+        if entry_url_ids:
+            statement = statement.where(
+                ParsedVocabols.entry_url_id.in_(entry_url_ids)  # type: ignore[attr-defined]
+            )
+
+    # Filter by images
+    if with_images is not None:
+        if with_images:
+            statement = statement.where(ParsedVocabols.image_url_count > 0)
+        else:
+            statement = statement.where(ParsedVocabols.image_url_count == 0)
+
+    # Filter by audio
+    if with_audio is not None:
+        if with_audio:
+            statement = statement.where(ParsedVocabols.audio_url_count > 0)
+        else:
+            statement = statement.where(ParsedVocabols.audio_url_count == 0)
+
+    statement = statement.limit(limit)
+    return list(session.exec(statement).all())
+
+
+def get_parsed_vocabols_overall_stats(
+    session: Session,
+) -> ParsedVocabolsOverallStats:
+    """Get overall statistics for all parsed vocabols.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    ParsedVocabolsOverallStats
+        Overall statistics model
+
+    """
+    total = count_parsed_vocabols(session)
+
+    # Count entries with images
+    with_images = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.image_url_count > 0)
+    ).one()
+
+    # Count entries with audio
+    with_audio = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.audio_url_count > 0)
+    ).one()
+
+    # Sum of all images
+    total_images = (
+        session.exec(
+            select(func.sum(ParsedVocabols.image_url_count)).select_from(ParsedVocabols)
+        ).one()
+        or 0
+    )
+
+    # Sum of all audio files
+    total_audio = (
+        session.exec(
+            select(func.sum(ParsedVocabols.audio_url_count)).select_from(ParsedVocabols)
+        ).one()
+        or 0
+    )
+
+    # Count entries with errors
+    with_errors = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.parsing_errors.isnot(None))  # type: ignore[attr-defined]
+    ).one()
+
+    return ParsedVocabolsOverallStats(
+        total=total,
+        with_images=with_images,
+        with_audio=with_audio,
+        total_images=total_images,
+        total_audio=total_audio,
+        with_errors=with_errors,
+    )
+
+
+def get_parsed_vocabols_stats_by_letter(
+    session: Session, letter: str
+) -> ParsedVocabolsLetterStats:
+    """Get statistics for parsed vocabols for a specific letter.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letter : str
+        Letter to get stats for (will be normalized)
+
+    Returns
+    -------
+    ParsedVocabolsLetterStats
+        Letter statistics model
+
+    """
+    normalized = normalize_letter(letter)
+
+    # Get entry_url_ids for this letter
+    entry_urls = get_entry_urls_by_letter(session, normalized)
+    entry_url_ids = [eu.id for eu in entry_urls]
+
+    if not entry_url_ids:
+        return ParsedVocabolsLetterStats(
+            letter=normalized,
+            total=0,
+            with_images=0,
+            with_audio=0,
+            avg_images=0.0,
+            avg_audio=0.0,
+        )
+
+    # Count total parsed for this letter
+    total = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
+    ).one()
+
+    # Count with images
+    with_images = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
+        .where(ParsedVocabols.image_url_count > 0)
+    ).one()
+
+    # Count with audio
+    with_audio = session.exec(
+        select(func.count())
+        .select_from(ParsedVocabols)
+        .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
+        .where(ParsedVocabols.audio_url_count > 0)
+    ).one()
+
+    # Average images per entry
+    avg_images = (
+        session.exec(
+            select(func.avg(ParsedVocabols.image_url_count))
+            .select_from(ParsedVocabols)
+            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
+        ).one()
+        or 0.0
+    )
+
+    # Average audio per entry
+    avg_audio = (
+        session.exec(
+            select(func.avg(ParsedVocabols.audio_url_count))
+            .select_from(ParsedVocabols)
+            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
+        ).one()
+        or 0.0
+    )
+
+    return ParsedVocabolsLetterStats(
+        letter=normalized,
+        total=total,
+        with_images=with_images,
+        with_audio=with_audio,
+        avg_images=float(avg_images),
+        avg_audio=float(avg_audio),
+    )
+
+
+# ============================================================================
+# VocabolsImages CRUD Operations
+# ============================================================================
+
+
+def create_vocabols_image(
+    session: Session, image_create: VocabolsImagesCreate
+) -> VocabolsImages:
+    """Create a new vocabol image entry and commit.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    image_create : VocabolsImagesCreate
+        Data for creating the image entry
+
+    Returns
+    -------
+    VocabolsImages
+        The created VocabolsImages instance
+
+    """
+    image = VocabolsImages.model_validate(image_create)
+    session.add(image)
+    session.commit()
+    session.refresh(image)
+    return image
+
+
+def add_vocabols_image_to_session(
+    session: Session, image_create: VocabolsImagesCreate
+) -> VocabolsImages:
+    """Add a new vocabol image entry to session without committing.
+
+    Used by service layer for batch operations.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    image_create : VocabolsImagesCreate
+        Data for creating the image entry
+
+    Returns
+    -------
+    VocabolsImages
+        The created VocabolsImages instance (ID will be None until commit)
+
+    """
+    image = VocabolsImages.model_validate(image_create)
+    session.add(image)
+    return image
+
+
+def get_vocabols_image_by_parsed_id(
+    session: Session, parsed_vocabol_id: UUID
+) -> Optional[VocabolsImages]:
+    """Get vocabol image by parsed vocabol ID.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_vocabol_id : UUID
+        ID of the parsed vocabol
+
+    Returns
+    -------
+    Optional[VocabolsImages]
+        VocabolsImages instance if found, None otherwise
+
+    """
+    statement = select(VocabolsImages).where(
+        VocabolsImages.parsed_vocabol_id == parsed_vocabol_id
+    )
+    return session.exec(statement).first()
+
+
+def update_vocabols_image(
+    session: Session,
+    image_id: UUID,
+    image_update: VocabolsImagesUpdate,
+) -> Optional[VocabolsImages]:
+    """Update an existing vocabol image entry.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    image_id : UUID
+        ID of the image entry to update
+    image_update : VocabolsImagesUpdate
+        Data for updating the image entry
+
+    Returns
+    -------
+    Optional[VocabolsImages]
+        Updated VocabolsImages instance if found, None otherwise
+
+    """
+    image = session.get(VocabolsImages, image_id)
+    if not image:
+        return None
+
+    update_data = image_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(image, key, value)
+
+    session.add(image)
+    session.commit()
+    session.refresh(image)
+    return image
+
+
+def find_parsed_vocabols_without_images(session: Session) -> list[ParsedVocabols]:
+    """Find all parsed vocabols that need image collection or re-collection.
+
+    Returns parsed vocabols that:
+    - Have at least one image_url in their JSONB array
+    - Either don't have collected images, or their parsed_at is newer than
+      the source_parsed_at of all collected images (indicating re-parsing)
+
+    This timestamp-based approach enables automatic re-collection when
+    vocabols are re-parsed due to HTML updates.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    list[ParsedVocabols]
+        List of parsed vocabols needing image collection
+
+    """
+    # Subquery: max source_parsed_at for each parsed_vocabol_id
+    max_source_parsed_subquery = (
+        select(
+            VocabolsImages.parsed_vocabol_id,
+            func.max(VocabolsImages.source_parsed_at).label("max_source_parsed_at"),
+        )
+        .group_by(VocabolsImages.parsed_vocabol_id)  # type: ignore[arg-type]
+        .subquery()
+    )
+
+    statement = (
+        select(ParsedVocabols)
+        .outerjoin(
+            max_source_parsed_subquery,
+            ParsedVocabols.id == max_source_parsed_subquery.c.parsed_vocabol_id,  # type: ignore[arg-type]
+        )
+        .where(ParsedVocabols.image_url_count > 0)
+        .where(
+            (max_source_parsed_subquery.c.max_source_parsed_at.is_(None))
+            | (
+                ParsedVocabols.parsed_at
+                > max_source_parsed_subquery.c.max_source_parsed_at
+            )
+        )
+    )
+
+    return list(session.exec(statement).all())
+
+
+def count_vocabols_images(session: Session) -> int:
+    """Count total vocabol images collected.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+
+    Returns
+    -------
+    int
+        Count of collected images
+
+    """
+    statement = select(func.count()).select_from(VocabolsImages)
+    return session.exec(statement).one()
+
+
+def get_vocabols_images_with_vocabol_info(
+    session: Session,
+    limit: int = 50,
+    letter: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list[tuple[VocabolsImages, Optional[str], str]]:
+    """Get vocabols images with associated vocabol information.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    limit : int
+        Maximum number of results to return
+    letter : Optional[str]
+        Filter by letter
+    status : Optional[str]
+        Filter by collection status
+
+    Returns
+    -------
+    list[tuple[VocabolsImages, Optional[str], str]]
+        List of tuples (image, algueres_word, url)
+
+    """
+    statement = select(
+        VocabolsImages,
+        ParsedVocabols.algueres_word,
+        ParsedVocabols.url,
+    ).join(
+        ParsedVocabols,
+        VocabolsImages.parsed_vocabol_id == ParsedVocabols.id,  # type: ignore[arg-type]
+    )
+
+    # Filter by letter if provided
+    if letter:
+        normalized_letter = normalize_letter(letter)
+        entry_urls = get_entry_urls_by_letter(session, normalized_letter)
+        entry_url_ids = [eu.id for eu in entry_urls]
+        statement = statement.where(
+            ParsedVocabols.entry_url_id.in_(entry_url_ids)  # type: ignore[attr-defined]
+        )
+
+    # Filter by status if provided
+    if status:
+        statement = statement.where(VocabolsImages.collection_status == status)
+
+    statement = statement.limit(limit)
+    return list(session.exec(statement).all())
+
+
+def get_vocabols_image_with_vocabol_by_id(
+    session: Session, image_id: UUID
+) -> Optional[tuple[VocabolsImages, ParsedVocabols]]:
+    """Get vocabols image with associated vocabol by image ID.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    image_id : UUID
+        Image ID
+
+    Returns
+    -------
+    Optional[tuple[VocabolsImages, ParsedVocabols]]
+        Tuple of (image, vocabol) if found, None otherwise
+
+    """
+    statement = (
+        select(VocabolsImages, ParsedVocabols)
+        .join(
+            ParsedVocabols,
+            VocabolsImages.parsed_vocabol_id == ParsedVocabols.id,  # type: ignore[arg-type]
+        )
+        .where(VocabolsImages.id == image_id)
+    )
+    return session.exec(statement).first()
