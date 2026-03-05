@@ -37,6 +37,27 @@ services:
     networks:
       - alguerisme-network
 
+  minio:
+    image: minio/minio:latest
+    container_name: alguerisme-minio-prod
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - minio_data_prod:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - alguerisme-network
+
   app:
     build: .
     image: alguerisme-core:prod
@@ -46,6 +67,9 @@ services:
     secrets:
       - db_password
       - redis_password
+      - telegram_bot_token
+      - minio_root_user
+      - minio_root_password
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml:ro
     # command: To be defined
@@ -54,6 +78,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - alguerisme-network
@@ -66,6 +92,9 @@ services:
     secrets:
       - db_password
       - redis_password
+      - telegram_bot_token
+      - minio_root_user
+      - minio_root_password
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml:ro
     command: ["celery", "-A", "alguerisme.celery.app", "worker", "--loglevel=info"]
@@ -74,6 +103,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - alguerisme-network
@@ -86,6 +117,7 @@ services:
     secrets:
       - db_password
       - redis_password
+      - telegram_bot_token
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml:ro
     command: ["celery", "-A", "alguerisme.celery.app", "beat", "--loglevel=info"]
@@ -115,6 +147,7 @@ services:
 
 volumes:
   postgres_data_prod:
+  minio_data_prod:
 
 networks:
   alguerisme-network:
@@ -125,3 +158,9 @@ secrets:
     file: ./secrets/prod/db_password.txt
   redis_password:
     file: ./secrets/prod/redis_password.txt
+  telegram_bot_token:
+    file: ./secrets/prod/telegram_bot_token.txt
+  minio_root_user:
+    file: ./secrets/prod/minio_root_user.txt
+  minio_root_password:
+    file: ./secrets/prod/minio_root_password.txt
