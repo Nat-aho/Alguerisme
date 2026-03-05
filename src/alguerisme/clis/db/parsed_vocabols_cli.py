@@ -5,15 +5,13 @@ from typing import Literal, Optional
 import typer
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from alguerisme.clis.utils import get_letters_or_default, setup_logging
 from alguerisme.configs.loader import load_app_config
 from alguerisme.core.database import crud
 from alguerisme.core.database.database import get_session
 from alguerisme.core.database.models import ParsedVocabols
-from alguerisme.utils.alphabet import normalize_letter
 
 app = typer.Typer(
     name="parsed-vocabols",
@@ -96,38 +94,19 @@ def list_entries(
         config = load_app_config()
 
         with get_session(config.db_config) as session:
-            # Build query
-            statement = select(ParsedVocabols)
-
-            # Filter by letters if provided
+            # Validate letters if provided
+            validated_letters = None
             if letters:
                 validated_letters = get_letters_or_default(letters, console)
-                # Get entry_url_ids for these letters
-                entry_urls = []
-                for letter in validated_letters:
-                    entry_urls.extend(crud.get_entry_urls_by_letter(session, letter))
 
-                entry_url_ids = [eu.id for eu in entry_urls]
-                statement = statement.where(
-                    ParsedVocabols.entry_url_id.in_(entry_url_ids)  # type: ignore[attr-defined]
-                )
-
-            # Filter by images
-            if with_images is not None:
-                if with_images:
-                    statement = statement.where(ParsedVocabols.image_url_count > 0)
-                else:
-                    statement = statement.where(ParsedVocabols.image_url_count == 0)
-
-            # Filter by audio
-            if with_audio is not None:
-                if with_audio:
-                    statement = statement.where(ParsedVocabols.audio_url_count > 0)
-                else:
-                    statement = statement.where(ParsedVocabols.audio_url_count == 0)
-
-            statement = statement.limit(limit)
-            entries = session.exec(statement).all()
+            # Get entries using CRUD function
+            entries = crud.get_parsed_vocabols_list(
+                session,
+                limit=limit,
+                letters=validated_letters,
+                with_images=with_images,
+                with_audio=with_audio,
+            )
 
             # Display results
             _display_entries_table(entries)
@@ -169,38 +148,7 @@ def show(
 
 def _show_overall_stats(session: Session) -> None:
     """Show overall statistics for all parsed vocabols."""
-    total = crud.count_parsed_vocabols(session)
-
-    # Count entries with images
-    with_images = session.exec(
-        select(func.count())
-        .select_from(ParsedVocabols)
-        .where(ParsedVocabols.image_url_count > 0)
-    ).one()
-
-    # Count entries with audio
-    with_audio = session.exec(
-        select(func.count())
-        .select_from(ParsedVocabols)
-        .where(ParsedVocabols.audio_url_count > 0)
-    ).one()
-
-    # Sum of all images
-    total_images = session.exec(
-        select(func.sum(ParsedVocabols.image_url_count)).select_from(ParsedVocabols)
-    ).one() or 0
-
-    # Sum of all audio files
-    total_audio = session.exec(
-        select(func.sum(ParsedVocabols.audio_url_count)).select_from(ParsedVocabols)
-    ).one() or 0
-
-    # Count entries with errors
-    with_errors = session.exec(
-        select(func.count())
-        .select_from(ParsedVocabols)
-        .where(ParsedVocabols.parsing_errors.isnot(None))  # type: ignore[attr-defined]
-    ).one()
+    stats = crud.get_parsed_vocabols_overall_stats(session)
 
     # Create stats table
     table = Table(title="Parsed Vocabols Statistics")
@@ -208,24 +156,24 @@ def _show_overall_stats(session: Session) -> None:
     table.add_column("Count", style="green", justify="right")
     table.add_column("Percentage", style="yellow", justify="right")
 
-    table.add_row("Total Parsed", str(total), "100%")
+    table.add_row("Total Parsed", str(stats.total), "100%")
     table.add_row(
         "With Images",
-        str(with_images),
-        f"{with_images/total*100:.1f}%" if total > 0 else "0%",
+        str(stats.with_images),
+        f"{stats.with_images / stats.total * 100:.1f}%" if stats.total > 0 else "0%",
     )
     table.add_row(
         "With Audio",
-        str(with_audio),
-        f"{with_audio/total*100:.1f}%" if total > 0 else "0%",
+        str(stats.with_audio),
+        f"{stats.with_audio / stats.total * 100:.1f}%" if stats.total > 0 else "0%",
     )
     table.add_row(
         "With Errors",
-        str(with_errors),
-        f"{with_errors/total*100:.1f}%" if total > 0 else "0%",
+        str(stats.with_errors),
+        f"{stats.with_errors / stats.total * 100:.1f}%" if stats.total > 0 else "0%",
     )
-    table.add_row("Total Images", str(total_images), "-")
-    table.add_row("Total Audio", str(total_audio), "-")
+    table.add_row("Total Images", str(stats.total_images), "-")
+    table.add_row("Total Audio", str(stats.total_audio), "-")
 
     console.print(table)
 
@@ -241,60 +189,15 @@ def _show_stats_by_letters(session: Session, letters: list[str]) -> None:
     table.add_column("Avg Audio", style="yellow", justify="right")
 
     for letter in letters:
-        normalized = normalize_letter(letter)
-
-        # Get entry_url_ids for this letter
-        entry_urls = crud.get_entry_urls_by_letter(session, normalized)
-        entry_url_ids = [eu.id for eu in entry_urls]
-
-        if not entry_url_ids:
-            table.add_row(normalized, "0", "0", "0", "0.0", "0.0")
-            continue
-
-        # Count total parsed for this letter
-        total = session.exec(
-            select(func.count())
-            .select_from(ParsedVocabols)
-            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
-        ).one()
-
-        # Count with images
-        with_images = session.exec(
-            select(func.count())
-            .select_from(ParsedVocabols)
-            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
-            .where(ParsedVocabols.image_url_count > 0)
-        ).one()
-
-        # Count with audio
-        with_audio = session.exec(
-            select(func.count())
-            .select_from(ParsedVocabols)
-            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
-            .where(ParsedVocabols.audio_url_count > 0)
-        ).one()
-
-        # Average images per entry
-        avg_images = session.exec(
-            select(func.avg(ParsedVocabols.image_url_count))
-            .select_from(ParsedVocabols)
-            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
-        ).one() or 0.0
-
-        # Average audio per entry
-        avg_audio = session.exec(
-            select(func.avg(ParsedVocabols.audio_url_count))
-            .select_from(ParsedVocabols)
-            .where(ParsedVocabols.entry_url_id.in_(entry_url_ids))  # type: ignore[attr-defined]
-        ).one() or 0.0
+        stats = crud.get_parsed_vocabols_stats_by_letter(session, letter)
 
         table.add_row(
-            normalized,
-            str(total),
-            str(with_images),
-            str(with_audio),
-            f"{avg_images:.1f}",
-            f"{avg_audio:.1f}",
+            stats.letter,
+            str(stats.total),
+            str(stats.with_images),
+            str(stats.with_audio),
+            f"{stats.avg_images:.1f}",
+            f"{stats.avg_audio:.1f}",
         )
 
     console.print(table)

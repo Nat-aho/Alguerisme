@@ -54,4 +54,5 @@ app = build_celery_app()
 from alguerisme.celery.tasks import crawler_tasks  # noqa: E402, F401
 from alguerisme.celery.tasks import html_collector_tasks  # noqa: E402, F401
 from alguerisme.celery.tasks import html_update_tasks  # noqa: E402, F401
+from alguerisme.celery.tasks import image_collector_tasks  # noqa: E402, F401
 from alguerisme.celery.tasks import parser_tasks  # noqa: E402, F401

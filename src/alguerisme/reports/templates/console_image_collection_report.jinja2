@@ -1,0 +1,11 @@
+Image Collection Results
+========================
+
+Total vocabols with images: {{ stats.total_vocabols_with_images }}
+Images collected: {{ stats.images_collected }}
+Images failed: {{ stats.images_failed }}
+Images skipped (already exist): {{ stats.images_skipped_exists }}
+
+{% if failed_letters|length > 0 -%}
+Failed letters: {{ failed_letters|join(', ') }}
+{% endif -%}
