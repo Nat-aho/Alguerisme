@@ -4,7 +4,7 @@ import logging
 
 from sqlmodel import Session
 
-from alguerisme.core.database.crud import add_parsed_vocabol_to_session
+from alguerisme.core.database.crud import upsert_parsed_vocabol_to_session
 from alguerisme.core.database.models import ParsedVocabolsCreate, VocabolsRawHTML
 from alguerisme.core.parser.models import ParseStats
 from alguerisme.core.parser.parser import VocabolParser
@@ -73,9 +73,7 @@ class VocabolParserService:
         logger.info(stats.summary())
         return stats
 
-    def _parse_single_entry(
-        self, entry: VocabolsRawHTML, stats: ParseStats
-    ) -> None:
+    def _parse_single_entry(self, entry: VocabolsRawHTML, stats: ParseStats) -> None:
         """Parse a single entry and add to session without committing.
 
         Parameters
@@ -120,10 +118,19 @@ class VocabolParserService:
                 parsing_errors=None,
             )
 
-            # Add to session without committing (service controls transaction)
-            add_parsed_vocabol_to_session(self.session, db_entry)
+            # Upsert to session without committing (service controls transaction)
+            # This handles both new entries and re-parsing updated HTML
+            parsed_entry, was_created = upsert_parsed_vocabol_to_session(
+                self.session, db_entry
+            )
             stats.parsed_successfully += 1
-            logger.debug(f"Parsed: {entry.url}")
+            if was_created:
+                stats.entries_created += 1
+            else:
+                stats.entries_updated += 1
+
+            action = "Created" if was_created else "Updated"
+            logger.debug(f"{action}: {entry.url}")
 
         except Exception as e:
             logger.error(f"Failed to parse {entry.url}: {e}")
@@ -137,7 +144,7 @@ class VocabolParserService:
                     url=entry.url,
                     parsing_errors=str(e)[:500],  # Truncate long errors
                 )
-                add_parsed_vocabol_to_session(self.session, error_entry)
+                upsert_parsed_vocabol_to_session(self.session, error_entry)
             except Exception as save_error:
                 logger.error(
                     f"Failed to save error record for {entry.url}: {save_error}"
@@ -193,10 +200,19 @@ class VocabolParserService:
                     parsing_errors=None,
                 )
 
-                # Add and commit individually
-                add_parsed_vocabol_to_session(self.session, db_entry)
+                # Upsert and commit individually
+                parsed_entry, was_created = upsert_parsed_vocabol_to_session(
+                    self.session, db_entry
+                )
                 self.session.commit()
                 stats.parsed_successfully += 1
+                if was_created:
+                    stats.entries_created += 1
+                else:
+                    stats.entries_updated += 1
+
+                action = "Created" if was_created else "Updated"
+                logger.debug(f"{action} (individual): {entry.url}")
 
             except Exception as e:
                 logger.error(f"Individual commit failed for {entry.url}: {e}")

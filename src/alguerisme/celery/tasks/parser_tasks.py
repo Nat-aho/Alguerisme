@@ -5,16 +5,12 @@ import logging
 
 from celery import chord
 from celery.exceptions import SoftTimeLimitExceeded
-from sqlmodel import Session, select
 
 from alguerisme.celery.app import app
 from alguerisme.configs.loader import load_app_config
-from alguerisme.core.database import create_database_engine
-from alguerisme.core.database.models import ParsedVocabols, VocabolsRawHTML
 from alguerisme.core.parser.models import (
     LetterParseResult,
     LetterParseResults,
-    ParseStats,
 )
 from alguerisme.jobs import run_parse_job
 from alguerisme.notifications.manager import NotificationManager
@@ -99,33 +95,13 @@ def parse_vocabols_for_letter(self, letter_str: str) -> dict:
     config = load_app_config()
 
     try:
-        # Get unparsed raw HTML entries for this letter
-        engine = create_database_engine(config.db_config)
-        with Session(engine) as session:
-            # Query raw HTML entries not yet parsed
-            subquery = select(ParsedVocabols.entry_url_id)
-            statement = (
-                select(VocabolsRawHTML)
-                .where(VocabolsRawHTML.letter == str(letter))
-                .where(VocabolsRawHTML.raw_html.isnot(None))
-                .where(VocabolsRawHTML.entry_url_id.notin_(subquery))  # type: ignore[attr-defined]
-            )
-
-            raw_entries = list(session.exec(statement).all())
-        engine.dispose()
-
-        if not raw_entries:
-            logger.info(f"No unparsed entries for letter {letter}")
-            return LetterParseResult.successful(
-                letter=str(letter), stats=ParseStats.empty()
-            ).to_dict()
-
-        logger.info(f"Found {len(raw_entries)} unparsed entries for letter {letter}")
-
         # Run parse job for this letter
         stats = asyncio.run(run_parse_job([letter], config))
 
-        logger.info(f"Parsing complete for {letter}: {stats.summary()}")
+        if stats.total_entries == 0:
+            logger.info(f"No unparsed entries for letter {letter}")
+        else:
+            logger.info(f"Parsing complete for {letter}: {stats.summary()}")
 
         return LetterParseResult.successful(letter=str(letter), stats=stats).to_dict()
 

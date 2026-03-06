@@ -701,6 +701,59 @@ def get_vocabols_raw_html_paginated(
     return list(session.exec(statement).all())
 
 
+def list_unparsed_vocabols_raw_html(
+    session: Session, letters: Optional[list[str]] = None
+) -> list[VocabolsRawHTML]:
+    """List raw HTML entries that need (re)parsing.
+
+    Returns entries that either:
+    1. Haven't been parsed yet (no entry in ParsedVocabols), OR
+    2. Have been updated since last parsing (last_updated_at > parsed_at)
+
+    This ensures HTML changes trigger re-parsing to keep parsed data in sync.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    letters : Optional[list[str]]
+        List of letters to filter by (e.g., ["A", "B", "NY"])
+        If None, returns unparsed entries for all letters
+
+    Returns
+    -------
+    list[VocabolsRawHTML]
+        List of raw HTML entries that need parsing
+
+    """
+    from sqlalchemy import or_
+
+    # Strategy: LEFT JOIN to find entries that are either:
+    # 1. Not parsed (ParsedVocabols is NULL), OR
+    # 2. HTML updated after parsing (last_updated_at > parsed_at)
+    statement = (
+        select(VocabolsRawHTML)
+        .outerjoin(
+            ParsedVocabols,
+            VocabolsRawHTML.entry_url_id == ParsedVocabols.entry_url_id,  # type: ignore[arg-type]
+        )
+        .where(VocabolsRawHTML.raw_html.isnot(None))  # type: ignore[attr-defined] # Must have HTML content
+        .where(
+            or_(
+                ParsedVocabols.entry_url_id.is_(None),  # type: ignore[attr-defined] # Not yet parsed
+                VocabolsRawHTML.last_updated_at > ParsedVocabols.parsed_at,  # type: ignore[arg-type] # Updated
+            )
+        )
+    )
+
+    # Optionally filter by letters
+    if letters:
+        normalized = [letter.upper() for letter in letters]
+        statement = statement.where(VocabolsRawHTML.letter.in_(normalized))  # type: ignore[attr-defined]
+
+    return list(session.exec(statement).all())
+
+
 def list_pending_vocabols_urls(
     session: Session, limit: Optional[int] = None
 ) -> list[EntryURLs]:
@@ -1092,6 +1145,61 @@ def add_parsed_vocabol_to_session(
     parsed = ParsedVocabols.model_validate(parsed_create)
     session.add(parsed)
     return parsed
+
+
+def upsert_parsed_vocabol_to_session(
+    session: Session, parsed_create: ParsedVocabolsCreate
+) -> tuple[ParsedVocabols, bool]:
+    """Insert or update a parsed vocabol in session without committing.
+
+    If an entry exists for this entry_url_id, updates it.
+    Otherwise, creates a new entry.
+
+    This enables re-parsing when HTML is updated.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_create : ParsedVocabolsCreate
+        Data for creating/updating the parsed entry
+
+    Returns
+    -------
+    tuple[ParsedVocabols, bool]
+        Tuple of (ParsedVocabols instance, was_created)
+        was_created is True if new entry, False if updated existing
+
+    """
+    from datetime import datetime, timezone
+
+    # Check if entry already exists
+    existing = get_parsed_vocabol_by_entry_url_id(session, parsed_create.entry_url_id)
+
+    if existing:
+        # Update existing entry
+        existing.raw_html_id = parsed_create.raw_html_id
+        existing.url = parsed_create.url
+        existing.algueres_word = parsed_create.algueres_word
+        existing.algueres_definition = parsed_create.algueres_definition
+        existing.catalan_word = parsed_create.catalan_word
+        existing.catalan_definition = parsed_create.catalan_definition
+        existing.italian_word = parsed_create.italian_word
+        existing.italian_definition = parsed_create.italian_definition
+        existing.image_urls = parsed_create.image_urls
+        existing.audio_urls = parsed_create.audio_urls
+        existing.image_url_count = parsed_create.image_url_count
+        existing.audio_url_count = parsed_create.audio_url_count
+        existing.parsing_errors = parsed_create.parsing_errors
+        existing.parsed_at = datetime.now(timezone.utc)  # Update timestamp
+
+        session.add(existing)
+        return existing, False
+    else:
+        # Create new entry
+        parsed = ParsedVocabols.model_validate(parsed_create)
+        session.add(parsed)
+        return parsed, True
 
 
 def get_parsed_vocabol_by_id(session: Session, id: UUID) -> Optional[ParsedVocabols]:

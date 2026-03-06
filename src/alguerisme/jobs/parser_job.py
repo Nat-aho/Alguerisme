@@ -2,11 +2,11 @@
 
 import logging
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from alguerisme.configs import AppConfig
 from alguerisme.core.database import create_database_engine
-from alguerisme.core.database.models import VocabolsRawHTML
+from alguerisme.core.database.crud import list_unparsed_vocabols_raw_html
 from alguerisme.core.parser.models import ParseStats
 from alguerisme.core.parser.parser import VocabolParser
 from alguerisme.core.parser.parser_service import VocabolParserService
@@ -48,15 +48,10 @@ async def run_parse_job(letters: list[Letter], config: AppConfig) -> ParseStats:
         with Session(engine) as session:
             # Get unparsed entries for these letters
             letter_strs = [str(letter) for letter in letters]
-            statement = (
-                select(VocabolsRawHTML)
-                .where(VocabolsRawHTML.letter.in_(letter_strs))
-                .where(VocabolsRawHTML.raw_html.isnot(None))
-            )
-            raw_html_entries = list(session.exec(statement).all())
+            raw_html_entries = list_unparsed_vocabols_raw_html(session, letter_strs)
 
             logger.info(
-                f"Found {len(raw_html_entries)} raw HTML entries "
+                f"Found {len(raw_html_entries)} unparsed raw HTML entries "
                 f"for letters: {letter_strs}"
             )
 

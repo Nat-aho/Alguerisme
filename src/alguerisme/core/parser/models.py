@@ -38,6 +38,8 @@ class ParseStats(BaseModel):
 
     total_entries: int = 0
     parsed_successfully: int = 0
+    entries_created: int = 0  # New parsed entries
+    entries_updated: int = 0  # Re-parsed due to HTML updates
     parsing_failed: int = 0
     skipped_no_html: int = 0
     skipped_empty_result: int = 0
@@ -49,13 +51,19 @@ class ParseStats(BaseModel):
 
     def summary(self) -> str:
         """Generate a summary string of the parsing statistics."""
-        return (
-            f"Parsing complete: "
-            f"{self.parsed_successfully} parsed, "
-            f"{self.parsing_failed} failed, "
-            f"{self.skipped_no_html} skipped (no HTML), "
-            f"{self.skipped_empty_result} skipped (empty result)"
-        )
+        details = [f"{self.parsed_successfully} parsed"]
+        if self.entries_created > 0:
+            details.append(f"{self.entries_created} new")
+        if self.entries_updated > 0:
+            details.append(f"{self.entries_updated} updated")
+        if self.parsing_failed > 0:
+            details.append(f"{self.parsing_failed} failed")
+        if self.skipped_no_html > 0:
+            details.append(f"{self.skipped_no_html} skipped (no HTML)")
+        if self.skipped_empty_result > 0:
+            details.append(f"{self.skipped_empty_result} skipped (empty)")
+
+        return f"Parsing complete: {', '.join(details)}"
 
 
 class LetterParseResult(BaseModel):
@@ -131,9 +139,7 @@ class LetterParseResults(BaseModel):
     @property
     def total_skipped_no_html(self) -> int:
         """Total entries skipped due to no HTML across all letters."""
-        return sum(
-            r.stats.skipped_no_html for r in self.successful_results if r.stats
-        )
+        return sum(r.stats.skipped_no_html for r in self.successful_results if r.stats)
 
     @property
     def total_skipped_empty(self) -> int:
