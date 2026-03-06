@@ -42,6 +42,7 @@ from alguerisme.core.database.models import (
     EntryURLs,
     ParsedVocabols,
     VocabolsHtmlChanges,
+    VocabolsImages,
     VocabolsRawHTML,
 )
 
@@ -50,6 +51,7 @@ _alembic_models = (
     VocabolsRawHTML,
     VocabolsHtmlChanges,
     ParsedVocabols,
+    VocabolsImages,
 )  # Add SQLModel models here for autogeneration support
 
 # this is the Alembic Config object, which provides
