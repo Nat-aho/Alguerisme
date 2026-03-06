@@ -30,7 +30,11 @@ class AppConfig(BaseModel):
     )
     http_client: HttpClientConfig = Field(
         default_factory=HttpClientConfig,
-        description="HTTP client configuration",
+        description="HTTP client configuration for HTML content",
+    )
+    http_client_images: HttpClientConfig = Field(
+        default_factory=HttpClientConfig,
+        description="HTTP client configuration for image downloads",
     )
     web_dictionary: WebDictionaryConfig = Field(
         default_factory=WebDictionaryConfig,

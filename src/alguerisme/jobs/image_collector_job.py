@@ -39,18 +39,18 @@ def run_image_collection_for_letter(
 
     logger.info(f"Starting image collection job for letter: {letter.value}")
 
+    # Load config
+    config = load_app_config()
+
+    # Create database engine
+    engine = create_database_engine(config.db_config)
+
     try:
-        # Load config
-        config = load_app_config()
-
-        # Create database engine
-        engine = create_database_engine(config.db_config)
-
         # Execute in session
         with Session(engine) as session:
             service = ImageCollectorService(
                 session=session,
-                http_config=config.http_client,
+                http_config=config.http_client_images,
                 minio_config=config.minio_config,
             )
 
@@ -64,6 +64,9 @@ def run_image_collection_for_letter(
             f"Image collection failed for letter {letter.value}: {e}", exc_info=True
         )
         return LetterImageCollectionResult.failed(letter.value, str(e))
+
+    finally:
+        engine.dispose()
 
 
 def run_image_collection_for_letters(

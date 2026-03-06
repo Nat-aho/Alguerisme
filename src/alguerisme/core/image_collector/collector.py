@@ -75,36 +75,31 @@ class ImageCollector:
         if self.session:
             await self.session.close()
 
-    async def download_image(
-        self, url: str, max_size_mb: int = 10
-    ) -> ImageDownloadResult:
+    async def download_image(self, url: str) -> ImageDownloadResult:
         """Download a single image from URL.
 
         Parameters
         ----------
         url : str
             Image URL to download
-        max_size_mb : int
-            Maximum allowed image size in MB (overrides http_config.max_response_size)
 
         Returns
         -------
         ImageDownloadResult
             Result containing image data or error
 
+        Notes
+        -----
+        The maximum image size is controlled by the http_config.max_response_size
+        passed during ImageCollector initialization. Use http_client_images config
+        for appropriate image size limits.
+
         """
         if not self.session:
             raise RuntimeError("ImageCollector must be used as async context manager")
 
         try:
-            # Temporarily override max_response_size for images
-            original_max_size = self.session.max_response_size
-            self.session.max_response_size = max_size_mb * 1024 * 1024
-
             response = await self.session.get(url)
-
-            # Restore original max size
-            self.session.max_response_size = original_max_size
 
             if response.status_code != 200:
                 return ImageDownloadResult(
@@ -132,17 +127,13 @@ class ImageCollector:
             logger.error(f"Failed to download image from {url}: {e}")
             return ImageDownloadResult(url=url, success=False, error=str(e))
 
-    async def download_images(
-        self, urls: list[str], max_size_mb: int = 10
-    ) -> list[ImageDownloadResult]:
+    async def download_images(self, urls: list[str]) -> list[ImageDownloadResult]:
         """Download multiple images concurrently.
 
         Parameters
         ----------
         urls : list[str]
             List of image URLs to download
-        max_size_mb : int
-            Maximum allowed image size in MB per image
 
         Returns
         -------
@@ -150,13 +141,13 @@ class ImageCollector:
             List of results for each URL
 
         """
-        tasks = [self.download_image(url, max_size_mb) for url in urls]
+        tasks = [self.download_image(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=False)
         return list(results)
 
     @classmethod
     async def download_single_image(
-        cls, url: str, http_config: HttpClientConfig, max_size_mb: int = 10
+        cls, url: str, http_config: HttpClientConfig
     ) -> ImageDownloadResult:
         """Download a single image.
 
@@ -165,9 +156,7 @@ class ImageCollector:
         url : str
             Image URL to download
         http_config : HttpClientConfig
-            HTTP client configuration
-        max_size_mb : int
-            Maximum allowed image size in MB
+            HTTP client configuration (use http_client_images for proper limits)
 
         Returns
         -------
@@ -176,4 +165,4 @@ class ImageCollector:
 
         """
         async with cls(http_config) as collector:
-            return await collector.download_image(url, max_size_mb)
+            return await collector.download_image(url)
