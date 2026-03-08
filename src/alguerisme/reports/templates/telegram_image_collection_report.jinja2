@@ -1,0 +1,32 @@
+📷 **Resultats Col·lecció Imatges**
+
+**Lletres**: {{ successful_letters|length }}/{{ (successful_letters + failed_letters)|length }} exitoses
+{% if failed_letters|length > 0 %}⚠️ {{ failed_letters|length }} fal·lides{% endif %}
+
+**Imatges**
+• Vocabols amb imatges: {{ stats.total_vocabols_with_images }}
+• Imatges col·lectades: {{ stats.images_collected }} ✅
+{% if stats.images_skipped_exists > 0 -%}
+• Ja existents (saltades): {{ stats.images_skipped_exists }}
+{% endif -%}
+{% if stats.images_failed > 0 -%}
+• Fal·lides: {{ stats.images_failed }} ❌
+{% endif -%}
+
+{% if successful_results|length > 0 %}
+**Detalls per Lletra**:
+{% for result in successful_results -%}
+{% if result.stats and (result.stats.images_collected > 0 or result.stats.images_failed > 0) -%}
+• **{{ result.letter }}**: {{ result.stats.images_collected }} col·lectades{% if result.stats.images_failed > 0 %}, {{ result.stats.images_failed }} fal·lides{% endif %}
+{% endif -%}
+{% endfor -%}
+{% endif -%}
+
+{% if failed_letters|length > 0 %}
+**Lletres Fal·lides**:
+{% for result in failed_results -%}
+• {{ result.letter|upper }}: {{ result.error }}
+{% endfor -%}
+{% endif -%}
+
+🗃️ **Emmagatzematge**: MinIO (bucket: alguerisme-images)

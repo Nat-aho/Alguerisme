@@ -40,7 +40,9 @@ from alguerisme.core.collector.enums import ChangeStatus, ChangeType  # noqa: F4
 # Now import models (they depend on enums being available)
 from alguerisme.core.database.models import (
     EntryURLs,
+    ParsedVocabols,
     VocabolsHtmlChanges,
+    VocabolsImages,
     VocabolsRawHTML,
 )
 
@@ -48,6 +50,8 @@ _alembic_models = (
     EntryURLs,
     VocabolsRawHTML,
     VocabolsHtmlChanges,
+    ParsedVocabols,
+    VocabolsImages,
 )  # Add SQLModel models here for autogeneration support
 
 # this is the Alembic Config object, which provides

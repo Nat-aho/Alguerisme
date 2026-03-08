@@ -41,6 +41,29 @@ services:
     networks:
       - alguerisme-network
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: alguerisme-minio-dev
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - minio_data_dev:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alguerisme-network
+
   app:
     image: alguerisme-core:dev
     build: .
@@ -50,12 +73,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     env_file:
       - .env.dev
     secrets:
       - db_password
       - redis_password
       - telegram_bot_token
+      - minio_root_user
+      - minio_root_password
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src
@@ -75,12 +102,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     env_file:
       - .env.dev
     secrets:
       - db_password
       - redis_password
       - telegram_bot_token
+      - minio_root_user
+      - minio_root_password
     volumes:
       - ./configs/config.yaml:/app/configs/config.yaml
       - ./src:/app/src  # Mount source so worker updates with code changes
@@ -112,6 +143,7 @@ services:
 
 volumes:
   postgres_data_dev:
+  minio_data_dev:
 
 networks:
   alguerisme-network:
@@ -124,3 +156,7 @@ secrets:
     file: ./secrets/dev/redis_password.txt
   telegram_bot_token:
     file: ./secrets/dev/telegram_bot_token.txt
+  minio_root_user:
+    file: ./secrets/dev/minio_root_user.txt
+  minio_root_password:
+    file: ./secrets/dev/minio_root_password.txt
