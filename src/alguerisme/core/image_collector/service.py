@@ -12,9 +12,11 @@ from alguerisme.configs.http_client import HttpClientConfig
 from alguerisme.configs.minio import MinioConfig
 from alguerisme.core.database.crud import (
     add_vocabols_image_to_session,
+    delete_vocabols_images_by_parsed_id,
     find_parsed_vocabols_without_images,
     get_entry_urls_by_letter,
     get_vocabols_image_by_parsed_id,
+    get_vocabols_image_by_parsed_id_and_url,
 )
 from alguerisme.core.database.models import ParsedVocabols, VocabolsImagesCreate
 from alguerisme.core.image_collector.collector import ImageCollector
@@ -175,6 +177,11 @@ class ImageCollectorService:
     ) -> None:
         """Collect all images for a single vocabol.
 
+        Implements per-URL collection logic:
+        - Checks each source_url individually
+        - Compares source_parsed_at with vocabol.parsed_at to detect re-parses
+        - Deletes and re-collects stale images when vocabol was re-parsed
+
         Parameters
         ----------
         vocabol : ParsedVocabols
@@ -185,19 +192,51 @@ class ImageCollectorService:
             Stats object to update
 
         """
-        # Check if already collected
-        existing = get_vocabols_image_by_parsed_id(self.session, vocabol.id)
-        if existing:
-            logger.debug(f"Images already collected for vocabol {vocabol.id}")
-            stats.images_skipped_exists += 1
-            return
-
         if not vocabol.image_urls:
             logger.debug(f"No image URLs for vocabol {vocabol.id}")
             return
 
-        # Collect all images for this vocabol
+        # Check if this vocabol needs re-collection (re-parsed)
+        # by checking if ANY existing images are from an older parse
+        existing_any = get_vocabols_image_by_parsed_id(self.session, vocabol.id)
+        if existing_any and existing_any.source_parsed_at < vocabol.parsed_at:
+            # Vocabol was re-parsed - delete old images and re-collect fresh
+            deleted_count = delete_vocabols_images_by_parsed_id(
+                self.session, vocabol.id
+            )
+            self.session.commit()
+            logger.info(
+                f"Vocabol {vocabol.algueres_word} was re-parsed "
+                f"(old: {existing_any.source_parsed_at}, new: {vocabol.parsed_at}). "
+                f"Deleted {deleted_count} old image records for re-collection."
+            )
+
+        # Collect all images for this vocabol (per-URL logic)
         for image_url in vocabol.image_urls:
+            # Check if THIS specific URL is already collected at current version
+            existing_for_url = get_vocabols_image_by_parsed_id_and_url(
+                self.session, vocabol.id, image_url
+            )
+
+            if existing_for_url:
+                if existing_for_url.source_parsed_at >= vocabol.parsed_at:
+                    # Already have current or newer version of this image
+                    logger.debug(
+                        f"Image already collected for {vocabol.algueres_word}: "
+                        f"{image_url}"
+                    )
+                    stats.images_skipped_exists += 1
+                    continue
+                else:
+                    # This case should not happen after the delete-old-images
+                    # logic above, but handle gracefully
+                    logger.warning(
+                        f"Found stale image for {vocabol.algueres_word} "
+                        f"that wasn't deleted: {image_url}"
+                    )
+                    stats.images_skipped_exists += 1
+                    continue
+
             # Download image
             result = await collector.download_image(image_url)
 

@@ -1678,6 +1678,67 @@ def get_vocabols_image_by_parsed_id(
     return session.exec(statement).first()
 
 
+def get_vocabols_image_by_parsed_id_and_url(
+    session: Session, parsed_vocabol_id: UUID, source_url: str
+) -> Optional[VocabolsImages]:
+    """Get vocabol image by parsed vocabol ID and source URL.
+
+    Uses the composite unique constraint (parsed_vocabol_id, source_url)
+    to identify a specific image for a specific vocabol.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_vocabol_id : UUID
+        ID of the parsed vocabol
+    source_url : str
+        Source URL of the image
+
+    Returns
+    -------
+    Optional[VocabolsImages]
+        VocabolsImages instance if found, None otherwise
+
+    """
+    statement = select(VocabolsImages).where(
+        VocabolsImages.parsed_vocabol_id == parsed_vocabol_id,
+        VocabolsImages.source_url == source_url,
+    )
+    return session.exec(statement).first()
+
+
+def delete_vocabols_images_by_parsed_id(
+    session: Session, parsed_vocabol_id: UUID
+) -> int:
+    """Delete all images for a parsed vocabol.
+
+    Used when re-collecting images for a re-parsed vocabol to ensure
+    clean replacement of stale image records.
+
+    Parameters
+    ----------
+    session : Session
+        Database session
+    parsed_vocabol_id : UUID
+        ID of the parsed vocabol
+
+    Returns
+    -------
+    int
+        Number of image records deleted
+
+    """
+    statement = select(VocabolsImages).where(
+        VocabolsImages.parsed_vocabol_id == parsed_vocabol_id
+    )
+    images = session.exec(statement).all()
+    count = len(images)
+    for image in images:
+        session.delete(image)
+    return count
+
+
 def update_vocabols_image(
     session: Session,
     image_id: UUID,
